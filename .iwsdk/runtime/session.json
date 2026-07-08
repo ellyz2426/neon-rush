@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
-  "sessionId": "a3f9eaff-7d16-41e2-b72d-679948f10464",
+  "sessionId": "40df7439-71d0-453f-9327-6fd328dbef5e",
   "workspaceRoot": "/home/hatch/workspace/neon-rush",
-  "pid": 5622,
-  "port": 5174,
-  "localUrl": "http://localhost:5174/",
+  "pid": 7496,
+  "port": 5173,
+  "localUrl": "http://localhost:5173/",
   "networkUrls": [
-    "http://198.19.0.2:5174/"
+    "http://198.19.0.2:5173/"
   ],
   "aiMode": "agent",
   "browser": {
@@ -14,9 +14,9 @@
     "connected": true,
     "commandReady": false,
     "connectedClientCount": 1,
-    "lastTransitionAt": "2026-07-08T22:11:31.162Z",
-    "lastBridgeConnectedAt": "2026-07-08T22:11:31.162Z"
+    "lastTransitionAt": "2026-07-08T22:12:59.979Z",
+    "lastBridgeConnectedAt": "2026-07-08T22:12:59.979Z"
   },
   "registeredAt": "2026-07-07T19:16:50.169Z",
-  "updatedAt": "2026-07-08T22:11:31.169Z"
+  "updatedAt": "2026-07-08T22:13:00.012Z"
 }

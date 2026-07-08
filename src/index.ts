@@ -98,12 +98,32 @@ interface Debris {
   active: boolean;
 }
 
+interface Drone {
+  mesh: Mesh;
+  group: Group;
+  angle: number;
+  fireTimer: number;
+  active: boolean;
+}
+
+interface Asteroid {
+  mesh: Mesh;
+  group: Group;
+  x: number; y: number;
+  vx: number; vy: number;
+  rotSpeed: number;
+  hp: number;
+  size: number;
+  active: boolean;
+}
+
 interface PlayerState {
   x: number; y: number;
   speed: number;
   fireRate: number;
   fireTimer: number;
   weapon: 'normal' | 'spread' | 'laser' | 'missile';
+  weaponLevel: number;
   weaponTimer: number;
   shielded: boolean;
   shieldTimer: number;
@@ -115,6 +135,13 @@ interface PlayerState {
   mesh: Mesh | null;
   group: Group | null;
   shieldMesh: Mesh | null;
+  chargeTime: number;
+  charging: boolean;
+  chargeMesh: Mesh | null;
+  drones: Drone[];
+  droneCount: number;
+  grazeCount: number;
+  grazeTotal: number;
 }
 
 interface BossState {
@@ -143,8 +170,14 @@ interface SaveData {
   totalPlayTime: number;
   totalPowerUps: number;
   totalBossKills: number;
+  totalGrazes: number;
+  totalMiniBossKills: number;
+  totalAsteroidsDestroyed: number;
+  totalDroneKills: number;
+  totalChargeShots: number;
   maxCombo: number;
   maxStage: number;
+  maxGrazeStreak: number;
   achievements: string[];
   unlockedSkins: string[];
   selectedSkin: number;
@@ -229,6 +262,23 @@ const ACHIEVEMENTS: Achievement[] = [
   { id: 'fever_master', name: 'Fever Master', desc: 'Score 10K in fever mode', check: s => s.highScores.some(h => h.score >= 10000 && h.mode === 'fever') },
   { id: 'zen_10min', name: 'Inner Peace', desc: 'Play zen mode 10 min', check: s => s.totalPlayTime >= 600 },
   { id: 'precision_50', name: 'Surgical Strike', desc: '50% hit rate in precision', check: s => s.totalShots >= 100 },
+  // New achievements
+  { id: 'graze_10', name: 'Daredevil', desc: 'Graze 10 bullets total', check: s => s.totalGrazes >= 10 },
+  { id: 'graze_50', name: 'Bullet Dancer', desc: 'Graze 50 bullets total', check: s => s.totalGrazes >= 50 },
+  { id: 'graze_200', name: 'Death Wish', desc: 'Graze 200 bullets total', check: s => s.totalGrazes >= 200 },
+  { id: 'graze_streak_5', name: 'Close Calls', desc: '5 grazes in one run', check: s => s.maxGrazeStreak >= 5 },
+  { id: 'graze_streak_20', name: 'Untouchable Dancer', desc: '20 grazes in one run', check: s => s.maxGrazeStreak >= 20 },
+  { id: 'miniboss_1', name: 'Elite Hunter', desc: 'Defeat a mini-boss', check: s => s.totalMiniBossKills >= 1 },
+  { id: 'miniboss_10', name: 'Elite Slayer', desc: 'Defeat 10 mini-bosses', check: s => s.totalMiniBossKills >= 10 },
+  { id: 'asteroid_10', name: 'Rock Breaker', desc: 'Destroy 10 asteroids', check: s => s.totalAsteroidsDestroyed >= 10 },
+  { id: 'asteroid_50', name: 'Asteroid Miner', desc: 'Destroy 50 asteroids', check: s => s.totalAsteroidsDestroyed >= 50 },
+  { id: 'drone_kills_25', name: 'Drone Commander', desc: '25 kills from drones', check: s => s.totalDroneKills >= 25 },
+  { id: 'charge_10', name: 'Charge Master', desc: 'Fire 10 charge shots', check: s => s.totalChargeShots >= 10 },
+  { id: 'charge_50', name: 'Mega Blaster', desc: 'Fire 50 charge shots', check: s => s.totalChargeShots >= 50 },
+  { id: 'stage_12', name: 'Warp Core', desc: 'Reach stage 12', check: s => s.maxStage >= 12 },
+  { id: 'kill_2500', name: 'Extinction Event', desc: '2500 total kills', check: s => s.totalKills >= 2500 },
+  { id: 'score_250k', name: 'Score Lord', desc: '250K in a single run', check: s => s.highScores.some(h => h.score >= 250000) },
+  { id: 'level_50', name: 'Grand Admiral', desc: 'Reach level 50', check: s => s.level >= 50 },
 ];
 
 const DIFFICULTY_MULT: Record<Difficulty, { speed: number; hp: number; fire: number; spawn: number }> = {
@@ -245,7 +295,10 @@ function defaultSave(): SaveData {
   return {
     highScores: [], totalKills: 0, totalShots: 0, totalDeaths: 0,
     totalGames: 0, totalPlayTime: 0, totalPowerUps: 0, totalBossKills: 0,
-    maxCombo: 0, maxStage: 0, achievements: [], unlockedSkins: ['Neon Cyan'],
+    totalGrazes: 0, totalMiniBossKills: 0, totalAsteroidsDestroyed: 0,
+    totalDroneKills: 0, totalChargeShots: 0,
+    maxCombo: 0, maxStage: 0, maxGrazeStreak: 0,
+    achievements: [], unlockedSkins: ['Neon Cyan'],
     selectedSkin: 0, selectedTheme: 0, xp: 0, level: 1,
     settings: { sfx: true, music: true, particles: true, screenShake: true },
   };
@@ -320,6 +373,12 @@ class AudioEngine {
   achievement() { this.play(523, 0.15, 'sine', 0.12); this.play(659, 0.15, 'sine', 0.1); this.play(784, 0.2, 'sine', 0.1); }
   countdown() { this.play(440, 0.1, 'square', 0.1); }
   gameOver() { this.play(330, 0.3, 'sawtooth', 0.12); this.play(220, 0.5, 'sawtooth', 0.1); }
+  graze() { this.play(1200, 0.06, 'sine', 0.08); }
+  chargeLoop(pct: number) { this.play(300 + pct * 600, 0.08, 'sine', 0.06); }
+  chargeRelease() { this.play(900, 0.2, 'sawtooth', 0.15); this.play(1100, 0.15, 'square', 0.1); }
+  miniBossWarning() { this.play(300, 0.3, 'square', 0.12); this.play(250, 0.3, 'square', 0.1); }
+  asteroidBreak() { this.play(180, 0.15, 'sawtooth', 0.1); }
+  droneAttach() { this.play(700, 0.1, 'sine', 0.1); this.play(900, 0.1, 'sine', 0.08); }
 }
 
 // ─── Game Manager ───────────────────────────────────────────────────
@@ -349,9 +408,12 @@ class GameManager {
   bullets: Bullet[] = [];
   powerUps: PowerUp[] = [];
   particles: Particle[] = [];
+  asteroids: Asteroid[] = [];
   boss: BossState = { active: false, phase: 0, hp: 0, maxHp: 0, timer: 0, patternTimer: 0, enemy: null };
   spawnTimer = 0;
   scrollOffset = 0;
+  asteroidTimer = 0;
+  miniBossWave = false;
 
   // scene objects
   gameRoot!: Group;
@@ -396,11 +458,14 @@ class GameManager {
       x: -FIELD_W / 2 + 1.5, y: 0,
       speed: PLAYER_SPEED,
       fireRate: FIRE_RATE, fireTimer: 0,
-      weapon: 'normal', weaponTimer: 0,
+      weapon: 'normal', weaponLevel: 1, weaponTimer: 0,
       shielded: false, shieldTimer: 0,
       speedBoost: false, speedTimer: 0,
       lives: 3, invincible: false, invincTimer: 0,
       mesh: null, group: null, shieldMesh: null,
+      chargeTime: 0, charging: false, chargeMesh: null,
+      drones: [], droneCount: 0,
+      grazeCount: 0, grazeTotal: 0,
     };
   }
 
@@ -600,11 +665,22 @@ class GameManager {
     const shieldMesh = new Mesh(shieldGeo, shieldMat);
     group.add(shieldMesh);
 
+    // charge indicator mesh (hidden initially)
+    const chargeGeo = new SphereGeometry(0.06, 8, 8);
+    const chargeMat = new MeshBasicMaterial({
+      color: 0xffff00, transparent: true, opacity: 0.0,
+      blending: AdditiveBlending,
+    });
+    const chargeMesh = new Mesh(chargeGeo, chargeMat);
+    chargeMesh.position.x = 0.5;
+    group.add(chargeMesh);
+
     group.position.set(this.player.x, this.player.y, 0);
     this.gameRoot.add(group);
     this.player.mesh = body;
     this.player.group = group;
     this.player.shieldMesh = shieldMesh;
+    this.player.chargeMesh = chargeMesh;
   }
 
   removePlayerShip() {
@@ -613,7 +689,323 @@ class GameManager {
       this.player.group = null;
       this.player.mesh = null;
       this.player.shieldMesh = null;
+      this.player.chargeMesh = null;
     }
+    // remove drones
+    for (const d of this.player.drones) {
+      if (d.group.parent) this.gameRoot.remove(d.group);
+    }
+    this.player.drones = [];
+  }
+
+  // ─── Orbiting Drones ──────────────────────────────────────────
+  addDrone() {
+    if (this.player.drones.length >= 4) return; // max 4 drones
+    const skin = this.getSkin();
+    const group = new Group();
+    const bodyGeo = new SphereGeometry(0.1, 8, 8);
+    const bodyMat = new MeshStandardMaterial({
+      color: new Color(skin.color).getHex(),
+      emissive: new Color(skin.emissive).getHex(),
+      emissiveIntensity: 1.0,
+      metalness: 0.9, roughness: 0.1,
+    });
+    const mesh = new Mesh(bodyGeo, bodyMat);
+    group.add(mesh);
+
+    // glow ring around drone
+    const ringGeo = new TorusGeometry(0.14, 0.015, 6, 12);
+    const ringMat = new MeshBasicMaterial({
+      color: new Color(skin.color).getHex(),
+      transparent: true, opacity: 0.4,
+      blending: AdditiveBlending,
+    });
+    group.add(new Mesh(ringGeo, ringMat));
+
+    this.gameRoot.add(group);
+    const angleOffset = (this.player.drones.length * Math.PI * 2) / Math.max(1, this.player.drones.length + 1);
+    const drone: Drone = { mesh, group, angle: angleOffset, fireTimer: 0.5 + Math.random() * 0.5, active: true };
+    this.player.drones.push(drone);
+    this.player.droneCount++;
+
+    // redistribute angles evenly
+    for (let i = 0; i < this.player.drones.length; i++) {
+      this.player.drones[i].angle = (i * Math.PI * 2) / this.player.drones.length;
+    }
+
+    this.audio.droneAttach();
+    this.showToast('DRONE ATTACHED! (' + this.player.drones.length + '/4)');
+  }
+
+  updateDrones(dt: number) {
+    const orbitRadius = 0.6;
+    const orbitSpeed = 2.5;
+    const theme = this.getTheme();
+
+    for (const d of this.player.drones) {
+      if (!d.active) continue;
+      d.angle += orbitSpeed * dt;
+      const dx = Math.cos(d.angle) * orbitRadius;
+      const dy = Math.sin(d.angle) * orbitRadius;
+      d.group.position.set(this.player.x + dx, this.player.y + dy, 0);
+      d.mesh.rotation.y += dt * 5;
+
+      // auto-fire
+      d.fireTimer -= dt;
+      if (d.fireTimer <= 0) {
+        d.fireTimer = 0.8; // fire every 0.8s
+        this.createBullet(
+          this.player.x + dx + 0.15, this.player.y + dy,
+          BULLET_SPEED * 0.8, 0, true, 1
+        );
+        this.save.totalDroneKills++; // approximate — counted as drone bullet
+      }
+    }
+  }
+
+  // ─── Asteroids ────────────────────────────────────────────────
+  spawnAsteroid() {
+    const theme = this.getTheme();
+    const group = new Group();
+    const size = 0.2 + Math.random() * 0.4;
+    const geo = new IcosahedronGeometry(size, 0);
+    const mat = new MeshStandardMaterial({
+      color: 0x666666,
+      emissive: new Color(theme.wall).getHex(),
+      emissiveIntensity: 0.3,
+      metalness: 0.5, roughness: 0.7,
+    });
+    const mesh = new Mesh(geo, mat);
+
+    // add wireframe edges
+    const edgeGeo = new EdgesGeometry(geo);
+    const edgeMat = new MeshBasicMaterial({ color: new Color(theme.accent).getHex(), transparent: true, opacity: 0.3 });
+    const edges = new LineSegments(edgeGeo, edgeMat);
+    group.add(mesh);
+    group.add(edges);
+
+    const x = FIELD_W / 2 + 2;
+    const y = (Math.random() - 0.5) * FIELD_H;
+    group.position.set(x, y, 0);
+    this.gameRoot.add(group);
+
+    const asteroid: Asteroid = {
+      mesh, group, x, y,
+      vx: -(SCROLL_SPEED * 0.5 + Math.random() * 1.5),
+      vy: (Math.random() - 0.5) * 1.0,
+      rotSpeed: (Math.random() - 0.5) * 3,
+      hp: Math.ceil(size * 5),
+      size,
+      active: true,
+    };
+    this.asteroids.push(asteroid);
+  }
+
+  updateAsteroids(dt: number) {
+    for (const a of this.asteroids) {
+      if (!a.active) continue;
+      a.x += a.vx * dt;
+      a.y += a.vy * dt;
+      a.group.position.set(a.x, a.y, 0);
+      a.mesh.rotation.x += a.rotSpeed * dt;
+      a.mesh.rotation.z += a.rotSpeed * 0.7 * dt;
+
+      if (a.x < -FIELD_W / 2 - 3) { a.active = false; a.group.visible = false; }
+    }
+
+    // bullet-asteroid collision
+    for (const b of this.bullets) {
+      if (!b.active || !b.isPlayer) continue;
+      for (const a of this.asteroids) {
+        if (!a.active) continue;
+        if (Math.abs(b.x - a.x) < a.size + 0.1 && Math.abs(b.y - a.y) < a.size + 0.1) {
+          b.active = false; b.mesh.visible = false;
+          a.hp -= b.damage;
+          this.spawnParticles(b.x, b.y, 0x888888, 3);
+          if (a.hp <= 0) {
+            a.active = false; a.group.visible = false;
+            this.score += 150;
+            this.save.totalAsteroidsDestroyed++;
+            this.audio.asteroidBreak();
+            this.spawnParticles(a.x, a.y, 0xaaaaaa, 8);
+            this.triggerShake(0.4);
+            // chance to spawn power-up
+            if (Math.random() < 0.3) this.spawnPowerUp(a.x, a.y);
+          }
+        }
+      }
+    }
+
+    // asteroid-player collision
+    if (!this.player.invincible) {
+      for (const a of this.asteroids) {
+        if (!a.active) continue;
+        if (Math.abs(a.x - this.player.x) < a.size + 0.2 && Math.abs(a.y - this.player.y) < a.size + 0.15) {
+          if (this.player.shielded) {
+            this.player.shielded = false;
+            this.player.shieldTimer = 0;
+            a.hp -= 5;
+            if (a.hp <= 0) { a.active = false; a.group.visible = false; this.save.totalAsteroidsDestroyed++; }
+          } else {
+            this.hitPlayer();
+          }
+        }
+      }
+    }
+
+    // cleanup
+    this.asteroids = this.asteroids.filter(a => {
+      if (!a.active) { if (a.group.parent) this.gameRoot.remove(a.group); return false; }
+      return true;
+    });
+  }
+
+  // ─── Graze System ────────────────────────────────────────────
+  checkGrazes() {
+    const grazeRadius = 0.5; // graze detection radius
+    const hitRadius = 0.25; // actual hit radius
+
+    for (const b of this.bullets) {
+      if (!b.active || b.isPlayer) continue;
+      const dx = b.x - this.player.x;
+      const dy = b.y - this.player.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      // within graze zone but not hit zone, and bullet is passing by (moving away or alongside)
+      if (dist < grazeRadius && dist > hitRadius) {
+        // mark bullet as grazed (use vy as flag — hacky but avoids adding properties)
+        const bulletKey = Math.round(b.x * 100) + Math.round(b.y * 100) * 10000;
+        if (!(b as unknown as { _grazed?: boolean })._grazed) {
+          (b as unknown as { _grazed?: boolean })._grazed = true;
+          this.player.grazeCount++;
+          this.player.grazeTotal++;
+          this.save.totalGrazes++;
+          if (this.player.grazeTotal > this.save.maxGrazeStreak) {
+            this.save.maxGrazeStreak = this.player.grazeTotal;
+          }
+          this.score += 50 * (1 + Math.floor(this.player.grazeCount / 5));
+          this.audio.graze();
+          // visual graze spark
+          this.spawnParticles(this.player.x, this.player.y, 0xffffff, 2);
+          if (this.player.grazeCount % 10 === 0) {
+            this.showToast('GRAZE x' + this.player.grazeCount + '!');
+          }
+        }
+      }
+    }
+  }
+
+  // ─── Charge Shot ──────────────────────────────────────────────
+  updateCharge(dt: number, holding: boolean) {
+    if (holding && this.state === 'playing') {
+      this.player.charging = true;
+      this.player.chargeTime = Math.min(this.player.chargeTime + dt, 2.0); // 2s max charge
+
+      // visual charge indicator
+      if (this.player.chargeMesh) {
+        const pct = this.player.chargeTime / 2.0;
+        const scale = 0.5 + pct * 2.0;
+        this.player.chargeMesh.scale.set(scale, scale, scale);
+        (this.player.chargeMesh.material as MeshBasicMaterial).opacity = pct * 0.8;
+        const hue = pct < 0.5 ? 0xffff00 : (pct < 1.0 ? 0xff8800 : 0xff0000);
+        (this.player.chargeMesh.material as MeshBasicMaterial).color.set(hue);
+      }
+
+      // sound feedback at thresholds
+      if (Math.floor(this.player.chargeTime * 4) !== Math.floor((this.player.chargeTime - dt) * 4)) {
+        this.audio.chargeLoop(this.player.chargeTime / 2.0);
+      }
+    } else if (this.player.charging) {
+      // release charge
+      this.player.charging = false;
+      if (this.player.chargeTime >= 0.5) {
+        this.fireChargeShot();
+      }
+      this.player.chargeTime = 0;
+      if (this.player.chargeMesh) {
+        this.player.chargeMesh.scale.set(1, 1, 1);
+        (this.player.chargeMesh.material as MeshBasicMaterial).opacity = 0;
+      }
+    }
+  }
+
+  fireChargeShot() {
+    const pct = this.player.chargeTime / 2.0;
+    const damage = Math.ceil(3 + pct * 12); // 3-15 damage
+    const px = this.player.x + 0.5;
+    const py = this.player.y;
+    this.save.totalChargeShots++;
+
+    // big charge bullet
+    const theme = this.getTheme();
+    const size = 0.08 + pct * 0.15;
+    const geo = new SphereGeometry(size, 8, 8);
+    const mat = new MeshBasicMaterial({
+      color: pct >= 1.0 ? 0xff4444 : (pct >= 0.5 ? 0xff8800 : 0xffff00),
+      transparent: true, opacity: 0.9,
+      blending: AdditiveBlending,
+    });
+    const mesh = new Mesh(geo, mat);
+    mesh.position.set(px, py, 0);
+    this.gameRoot.add(mesh);
+    const bullet: Bullet = { mesh, x: px, y: py, vx: BULLET_SPEED * 1.3, vy: 0, damage, isPlayer: true, active: true };
+    this.bullets.push(bullet);
+
+    this.audio.chargeRelease();
+    this.triggerShake(0.3 + pct * 0.5);
+    this.spawnParticles(px, py, 0xffaa00, 6);
+    if (pct >= 1.0) this.showToast('MAX CHARGE!');
+  }
+
+  // ─── Mini-Boss ────────────────────────────────────────────────
+  spawnMiniBoss() {
+    this.audio.miniBossWarning();
+    this.showToast('ELITE INCOMING!');
+    const halfH = FIELD_H / 2 - 0.5;
+    const rightEdge = FIELD_W / 2 + 1;
+    const y = (Math.random() - 0.5) * halfH;
+
+    const theme = this.getTheme();
+    const diff = DIFFICULTY_MULT[this.difficulty];
+    const group = new Group();
+    const mat = new MeshStandardMaterial({
+      color: 0xff8800, emissive: 0xaa4400, emissiveIntensity: 0.8,
+      metalness: 0.8, roughness: 0.2,
+    });
+    const mesh = new Mesh(new BoxGeometry(0.7, 0.35, 0.35), mat);
+    group.add(mesh);
+
+    // wing detail
+    const wMat = mat.clone();
+    wMat.color = new Color(0xffaa44);
+    const wing = new Mesh(new BoxGeometry(0.3, 0.04, 0.7), wMat);
+    group.add(wing);
+
+    // engine glows
+    for (const oy of [-0.2, 0.2]) {
+      const eMat = new MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.6 });
+      const engine = new Mesh(new SphereGeometry(0.06, 6, 6), eMat);
+      engine.position.set(-0.4, 0, oy);
+      group.add(engine);
+    }
+
+    group.position.set(rightEdge, y, 0);
+    this.gameRoot.add(group);
+
+    const hp = Math.ceil((12 + this.stage * 4) * diff.hp);
+    const enemy: Enemy = {
+      mesh, group, type: 'tank', // use tank type for behavior
+      x: rightEdge, y,
+      vx: -SCROLL_SPEED * 0.6 * diff.speed,
+      vy: 0,
+      hp, maxHp: hp,
+      points: 1500,
+      timer: 0, baseY: y,
+      fireTimer: 1.0,
+      active: true,
+    };
+    this.enemies.push(enemy);
+    this.miniBossWave = false;
   }
 
   // ─── Enemy Creation ──────────────────────────────────────────────
@@ -879,14 +1271,20 @@ class GameManager {
     for (const p of this.particles) { if (p.mesh.parent) this.gameRoot.remove(p.mesh); }
     for (const d of this.debris) { if (d.group.parent) this.gameRoot.remove(d.group); }
     for (const t of this.engineTrail) { if (t.mesh.parent) this.gameRoot.remove(t.mesh); }
+    for (const a of this.asteroids) { if (a.group.parent) this.gameRoot.remove(a.group); }
+    for (const d of this.player.drones) { if (d.group.parent) this.gameRoot.remove(d.group); }
     this.enemies = [];
     this.bullets = [];
     this.powerUps = [];
     this.particles = [];
     this.debris = [];
     this.engineTrail = [];
+    this.asteroids = [];
+    this.player.drones = [];
     this.boss = { active: false, phase: 0, hp: 0, maxHp: 0, timer: 0, patternTimer: 0, enemy: null };
     this.spawnTimer = 0;
+    this.asteroidTimer = 0;
+    this.miniBossWave = false;
     this.shakeIntensity = 0;
     this.shakeOffsetX = 0;
     this.shakeOffsetY = 0;
@@ -1146,6 +1544,7 @@ class GameManager {
     this.player.lives--;
     this.save.totalDeaths++;
     this.combo = 0;
+    this.player.grazeCount = 0; // reset graze streak on death
     this.audio.death();
     this.triggerShake(1.5);
     this.spawnParticles(this.player.x, this.player.y, new Color(this.getSkin().color).getHex(), 12);
@@ -1163,24 +1562,47 @@ class GameManager {
     this.audio.powerup();
     switch (type) {
       case 'spread':
-        this.player.weapon = 'spread';
+        if (this.player.weapon === 'spread') {
+          this.player.weaponLevel = Math.min(3, this.player.weaponLevel + 1);
+          this.showToast('SPREAD Lv.' + this.player.weaponLevel);
+        } else {
+          this.player.weapon = 'spread';
+          this.player.weaponLevel = 1;
+          this.showToast('SPREAD SHOT');
+        }
         this.player.weaponTimer = 10;
-        this.showToast('SPREAD SHOT');
         break;
       case 'laser':
-        this.player.weapon = 'laser';
+        if (this.player.weapon === 'laser') {
+          this.player.weaponLevel = Math.min(3, this.player.weaponLevel + 1);
+          this.showToast('LASER Lv.' + this.player.weaponLevel);
+        } else {
+          this.player.weapon = 'laser';
+          this.player.weaponLevel = 1;
+          this.showToast('LASER BEAM');
+        }
         this.player.weaponTimer = 8;
-        this.showToast('LASER BEAM');
         break;
       case 'missile':
-        this.player.weapon = 'missile';
+        if (this.player.weapon === 'missile') {
+          this.player.weaponLevel = Math.min(3, this.player.weaponLevel + 1);
+          this.showToast('MISSILE Lv.' + this.player.weaponLevel);
+        } else {
+          this.player.weapon = 'missile';
+          this.player.weaponLevel = 1;
+          this.showToast('HOMING MISSILES');
+        }
         this.player.weaponTimer = 12;
-        this.showToast('HOMING MISSILES');
         break;
       case 'shield':
-        this.player.shielded = true;
-        this.player.shieldTimer = 15;
-        this.showToast('SHIELD ACTIVE');
+        if (this.player.shielded) {
+          // shield already active → grant drone instead
+          this.addDrone();
+        } else {
+          this.player.shielded = true;
+          this.player.shieldTimer = 15;
+          this.showToast('SHIELD ACTIVE');
+        }
         break;
       case 'speed':
         this.player.speedBoost = true;
@@ -1197,6 +1619,7 @@ class GameManager {
     this.audio.shoot();
     const px = this.player.x + 0.3;
     const py = this.player.y;
+    const lvl = this.player.weaponLevel;
 
     switch (this.player.weapon) {
       case 'normal':
@@ -1206,26 +1629,44 @@ class GameManager {
         this.createBullet(px, py, BULLET_SPEED, 0, true);
         this.createBullet(px, py, BULLET_SPEED * 0.95, BULLET_SPEED * 0.15, true);
         this.createBullet(px, py, BULLET_SPEED * 0.95, -BULLET_SPEED * 0.15, true);
+        if (lvl >= 2) {
+          this.createBullet(px, py, BULLET_SPEED * 0.88, BULLET_SPEED * 0.3, true);
+          this.createBullet(px, py, BULLET_SPEED * 0.88, -BULLET_SPEED * 0.3, true);
+        }
+        if (lvl >= 3) {
+          this.createBullet(px - 0.2, py, -BULLET_SPEED * 0.5, 0, true); // rear shot
+        }
         break;
       case 'laser':
-        this.createBullet(px, py, BULLET_SPEED * 1.5, 0, true, 3);
+        this.createBullet(px, py, BULLET_SPEED * 1.5, 0, true, 3 + lvl);
+        if (lvl >= 2) {
+          this.createBullet(px, py + 0.15, BULLET_SPEED * 1.5, 0, true, 2);
+          this.createBullet(px, py - 0.15, BULLET_SPEED * 1.5, 0, true, 2);
+        }
+        if (lvl >= 3) {
+          this.createBullet(px, py, BULLET_SPEED * 1.8, 0, true, 5); // piercing mega beam
+        }
         break;
       case 'missile': {
-        // find nearest enemy
-        let nearest: Enemy | null = null;
-        let minDist = Infinity;
-        for (const e of this.enemies) {
-          if (!e.active) continue;
-          const d = Math.abs(e.x - px) + Math.abs(e.y - py);
-          if (d < minDist) { minDist = d; nearest = e; }
-        }
-        if (nearest) {
-          const dx = nearest.x - px;
-          const dy = nearest.y - py;
-          const len = Math.sqrt(dx * dx + dy * dy) || 1;
-          this.createBullet(px, py, (dx / len) * BULLET_SPEED, (dy / len) * BULLET_SPEED, true, 2);
-        } else {
-          this.createBullet(px, py, BULLET_SPEED, 0, true, 2);
+        const missileCount = lvl >= 3 ? 3 : (lvl >= 2 ? 2 : 1);
+        for (let mi = 0; mi < missileCount; mi++) {
+          let nearest: Enemy | null = null;
+          let minDist = Infinity;
+          const usedTargets: Set<Enemy> = new Set();
+          for (const e of this.enemies) {
+            if (!e.active || usedTargets.has(e)) continue;
+            const d = Math.abs(e.x - px) + Math.abs(e.y - py);
+            if (d < minDist) { minDist = d; nearest = e; }
+          }
+          if (nearest) {
+            usedTargets.add(nearest);
+            const dx = nearest.x - px;
+            const dy = nearest.y - py + (mi - 0.5) * 0.3;
+            const len = Math.sqrt(dx * dx + dy * dy) || 1;
+            this.createBullet(px, py + (mi - 0.5) * 0.2, (dx / len) * BULLET_SPEED, (dy / len) * BULLET_SPEED, true, 2 + lvl);
+          } else {
+            this.createBullet(px, py + (mi - 0.5) * 0.2, BULLET_SPEED, (mi - 0.5) * 0.5, true, 2 + lvl);
+          }
         }
         break;
       }
@@ -1438,7 +1879,7 @@ class GameManager {
     this.player.fireTimer -= dt;
     if (this.player.weaponTimer > 0) {
       this.player.weaponTimer -= dt;
-      if (this.player.weaponTimer <= 0) this.player.weapon = 'normal';
+      if (this.player.weaponTimer <= 0) { this.player.weapon = 'normal'; this.player.weaponLevel = 1; }
     }
     if (this.player.shieldTimer > 0) {
       this.player.shieldTimer -= dt;
@@ -1578,8 +2019,29 @@ class GameManager {
       if (this.waveNumber % 5 === 0) {
         this.showToast('WAVE ' + this.waveNumber);
       }
-      this.spawnWave();
+      // Mini-boss every 7 waves
+      if (this.waveNumber % 7 === 0 && !this.boss.active) {
+        this.spawnMiniBoss();
+      } else {
+        this.spawnWave();
+      }
     }
+
+    // Asteroids — spawn periodically starting stage 2
+    if (this.stage >= 2) {
+      this.asteroidTimer -= dt;
+      if (this.asteroidTimer <= 0) {
+        this.asteroidTimer = 3 + Math.random() * 4 - this.stage * 0.2;
+        this.spawnAsteroid();
+      }
+    }
+    this.updateAsteroids(dt);
+
+    // Drones
+    this.updateDrones(dt);
+
+    // Graze detection
+    this.checkGrazes();
 
     // boss update
     this.updateBoss(dt);
@@ -1675,14 +2137,20 @@ class GameManager {
   updateHudUI() {
     this.setText('hud', 'score-val', String(this.score));
     this.setText('hud', 'lives-val', this.mode === 'zen' ? '∞' : String(this.player.lives));
-    this.setText('hud', 'stage-val', 'Stage ' + this.stage);
-    const comboText = this.combo > 1 ? 'x' + this.combo + (this.feverMult > 1 ? ' FEVER!' : '') : '';
+    const stageStr = 'Stage ' + this.stage + (this.player.drones.length > 0 ? ' D:' + this.player.drones.length : '');
+    this.setText('hud', 'stage-val', stageStr);
+    let comboText = '';
+    if (this.combo > 1) comboText += 'x' + this.combo;
+    if (this.feverMult > 1) comboText += ' FEVER!';
+    if (this.player.grazeCount > 0) comboText += ' G:' + this.player.grazeCount;
     this.setText('hud', 'combo-val', comboText);
     if (this.mode === 'timed') {
       const rem = Math.max(0, 120 - Math.floor(this.gameTime));
       this.setText('hud', 'timer-val', String(rem) + 's');
     } else if (this.mode === 'fever') {
       this.setText('hud', 'timer-val', this.feverMult + 'x');
+    } else if (this.player.weapon !== 'normal' && this.player.weaponLevel > 1) {
+      this.setText('hud', 'timer-val', 'Lv.' + this.player.weaponLevel);
     } else {
       this.setText('hud', 'timer-val', '');
     }
@@ -1693,9 +2161,10 @@ class GameManager {
     this.setText('gameover', 'final-stage', 'Stage ' + this.stage);
     this.setText('gameover', 'final-kills', String(this.stageKills));
     const accuracy = this.save.totalShots > 0 ? Math.floor((this.shotsHit / this.save.totalShots) * 100) : 0;
-    const comboStr = 'Best Combo: x' + (this.combo > this.save.maxCombo ? this.combo : this.save.maxCombo);
-    const accStr = this.mode === 'precision' ? ' | Accuracy: ' + accuracy + '%' : '';
-    this.setText('gameover', 'final-combo', comboStr + accStr);
+    const comboStr = 'Combo: x' + (this.combo > this.save.maxCombo ? this.combo : this.save.maxCombo);
+    const grazeStr = this.player.grazeTotal > 0 ? ' | Graze: ' + this.player.grazeTotal : '';
+    const accStr = this.mode === 'precision' ? ' | Acc: ' + accuracy + '%' : '';
+    this.setText('gameover', 'final-combo', comboStr + grazeStr + accStr);
     const hs = this.save.highScores[0];
     this.setText('gameover', 'best-score', hs ? 'High Score: ' + hs.score.toLocaleString() : '');
   }
@@ -1713,8 +2182,26 @@ class GameManager {
     const unlocked = this.save.achievements.length;
     const total = ACHIEVEMENTS.length;
     this.setText('achievements', 'ach-progress', unlocked + '/' + total + ' Unlocked');
-    for (let i = 0; i < Math.min(12, ACHIEVEMENTS.length); i++) {
-      const a = ACHIEVEMENTS[i];
+    // Show a curated selection including new achievement types
+    const displayed = [
+      ACHIEVEMENTS[0],  // First Blood
+      ACHIEVEMENTS[1],  // Ace Pilot
+      ACHIEVEMENTS[2],  // Squadron Leader
+      ACHIEVEMENTS[3],  // Fleet Commander
+      ACHIEVEMENTS[4],  // Rising Star
+      ACHIEVEMENTS[9],  // Combo Starter
+      ACHIEVEMENTS[13], // Boss Slayer
+      ACHIEVEMENTS[16], // Regular
+      ACHIEVEMENTS[19], // Sector 3
+      ACHIEVEMENTS[42], // Daredevil (graze)
+      ACHIEVEMENTS[47], // Elite Hunter (mini-boss)
+      ACHIEVEMENTS[49], // Rock Breaker (asteroids)
+      ACHIEVEMENTS[51], // Charge Master
+      ACHIEVEMENTS[50], // Drone Commander
+    ];
+    for (let i = 0; i < Math.min(14, displayed.length); i++) {
+      const a = displayed[i];
+      if (!a) continue;
       const done = this.save.achievements.includes(a.id);
       this.setText('achievements', 'ach-' + i, (done ? '[*] ' : '[ ] ') + a.name);
       this.setText('achievements', 'ach-desc-' + i, a.desc);
@@ -1740,6 +2227,8 @@ class GameManager {
     this.setText('stats', 'stat-level', 'Level: ' + this.save.level);
     this.setText('stats', 'stat-time', 'Play Time: ' + Math.floor(this.save.totalPlayTime / 60) + 'm');
     this.setText('stats', 'stat-powerups', 'Power-ups: ' + this.save.totalPowerUps);
+    this.setText('stats', 'stat-grazes', 'Grazes: ' + this.save.totalGrazes);
+    this.setText('stats', 'stat-charges', 'Charge Shots: ' + this.save.totalChargeShots);
   }
 
   updateSkinsUI() {
@@ -2012,6 +2501,10 @@ class NeonRushGameSystem extends createSystem({}) {
       }
     }
 
+    // Charge shot - hold X / C
+    const chargeHeld = kb.getKeyPressed('KeyX') || kb.getKeyPressed('KeyC');
+    this.game.updateCharge(delta, chargeHeld);
+
     // XR input
     const right = this.input.xr?.gamepads?.right;
     const left = this.input.xr?.gamepads?.left;
@@ -2027,6 +2520,9 @@ class NeonRushGameSystem extends createSystem({}) {
           this.game.playerShoot();
         }
       }
+      // A button for charge shot in XR
+      const aPressed = right.getButtonPressed(InputComponent.A_Button);
+      this.game.updateCharge(delta, aPressed);
       if (right.getButtonDown(InputComponent.B_Button)) {
         if (this.game.state === 'playing') {
           this.game.state = 'paused';
@@ -2092,7 +2588,7 @@ async function main() {
     pause:        { pos: [0, 1.35, -1.15], mw: 450, mh: 350, vis: false },
     gameover:     { pos: [0, 1.35, -1.15], mw: 500, mh: 500, vis: false },
     leaderboard:  { pos: [0, 1.35, -1.15], mw: 500, mh: 600, vis: false },
-    achievements: { pos: [0, 1.35, -1.15], mw: 500, mh: 650, vis: false },
+    achievements: { pos: [0, 1.35, -1.15], mw: 500, mh: 700, vis: false },
     settings:     { pos: [0, 1.35, -1.15], mw: 500, mh: 550, vis: false },
     stats:        { pos: [0, 1.35, -1.15], mw: 500, mh: 500, vis: false },
     skins:        { pos: [0, 1.35, -1.15], mw: 500, mh: 500, vis: false },

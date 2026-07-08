@@ -1,22 +1,24 @@
-<container flexDirection="column" alignItems="center" justifyContent="center" gap="3" width="320" height="400">
+<container flexDirection="column" alignItems="center" justifyContent="center" gap="3" width="320" height="420">
   <text fontSize="18" fontWeight="bold" color="#aaaaaa" marginBottom="4">HOW TO PLAY</text>
   <text fontSize="10" color="#00ffff" width="280">CONTROLS (Keyboard):</text>
-  <text fontSize="9" color="#cccccc" width="280">WASD / Arrow Keys - Move ship</text>
-  <text fontSize="9" color="#cccccc" width="280">Space / Z - Shoot</text>
+  <text fontSize="9" color="#cccccc" width="280">WASD / Arrows - Move ship</text>
+  <text fontSize="9" color="#cccccc" width="280">Space / Z - Rapid fire</text>
+  <text fontSize="9" color="#cccccc" width="280">Hold X / C - Charge shot</text>
   <text fontSize="9" color="#cccccc" width="280">Escape / P - Pause</text>
-  <text fontSize="10" color="#00ffff" width="280" marginTop="4">CONTROLS (VR):</text>
-  <text fontSize="9" color="#cccccc" width="280">Right thumbstick - Move</text>
-  <text fontSize="9" color="#cccccc" width="280">Right trigger - Shoot</text>
+  <text fontSize="10" color="#00ffff" width="280" marginTop="3">CONTROLS (VR):</text>
+  <text fontSize="9" color="#cccccc" width="280">Thumbsticks - Move</text>
+  <text fontSize="9" color="#cccccc" width="280">Triggers - Shoot</text>
+  <text fontSize="9" color="#cccccc" width="280">Hold A - Charge shot</text>
   <text fontSize="9" color="#cccccc" width="280">B button - Pause</text>
-  <text fontSize="10" color="#ffaa00" width="280" marginTop="4">POWER-UPS:</text>
-  <text fontSize="9" color="#ff8800" width="280">Spread - Triple shot</text>
-  <text fontSize="9" color="#00ff88" width="280">Laser - High damage beam</text>
+  <text fontSize="10" color="#ffaa00" width="280" marginTop="3">POWER-UPS (Stack for Lv.2/3!):</text>
+  <text fontSize="9" color="#ff8800" width="280">Spread - Multi-directional</text>
+  <text fontSize="9" color="#00ff88" width="280">Laser - Piercing beam</text>
   <text fontSize="9" color="#ff4444" width="280">Missile - Homing shots</text>
-  <text fontSize="9" color="#4488ff" width="280">Shield - Block 1 hit</text>
+  <text fontSize="9" color="#4488ff" width="280">Shield - Block hit (2nd = Drone)</text>
   <text fontSize="9" color="#ffff00" width="280">Speed - Move faster</text>
-  <text fontSize="10" color="#ff44ff" width="280" marginTop="4">TIPS:</text>
-  <text fontSize="9" color="#cccccc" width="280">Destroy enemies for combos</text>
-  <text fontSize="9" color="#cccccc" width="280">Kill enough to face the boss</text>
-  <text fontSize="9" color="#cccccc" width="280">Earn XP to level up</text>
-  <text name="btn-help-back" fontSize="12" color="#aaaaaa" backgroundColor="#222222" borderRadius="4" padding="5" width="120" textAlign="center" cursor="pointer" marginTop="6">BACK</text>
+  <text fontSize="10" color="#ff44ff" width="280" marginTop="3">ADVANCED:</text>
+  <text fontSize="9" color="#cccccc" width="280">Graze bullets for bonus score</text>
+  <text fontSize="9" color="#cccccc" width="280">Drones orbit and auto-fire</text>
+  <text fontSize="9" color="#cccccc" width="280">Asteroids drop power-ups</text>
+  <text name="btn-help-back" fontSize="12" color="#aaaaaa" backgroundColor="#222222" borderRadius="4" padding="5" width="120" textAlign="center" cursor="pointer" marginTop="4">BACK</text>
 </container>
