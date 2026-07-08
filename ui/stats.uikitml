@@ -1,16 +1,14 @@
-<container flexDirection="column" alignItems="center" justifyContent="center" gap="3" width="300" height="300">
-  <text fontSize="18" fontWeight="bold" color="#44ff44">STATS</text>
-  <container flexDirection="column" gap="2" width="260">
-    <text name="stat-1" fontSize="10" color="#aaaaaa">Puzzles Solved: 0</text>
-    <text name="stat-2" fontSize="10" color="#aaaaaa">Total Moves: 0</text>
-    <text name="stat-3" fontSize="10" color="#aaaaaa">Best Score: 0</text>
-    <text name="stat-4" fontSize="10" color="#aaaaaa">Total Score: 0</text>
-    <text name="stat-5" fontSize="10" color="#aaaaaa">Avg Moves/Puzzle: --</text>
-    <text name="stat-6" fontSize="10" color="#aaaaaa">Perfect Solves: 0</text>
-    <text name="stat-7" fontSize="10" color="#aaaaaa">Total Stars: 0</text>
-    <text name="stat-8" fontSize="10" color="#aaaaaa">Best Streak: 0</text>
-    <text name="stat-9" fontSize="10" color="#aaaaaa">Play Time: 0:00</text>
-    <text name="stat-10" fontSize="10" color="#aaaaaa">Level: 1</text>
-  </container>
-  <text name="btn-back" fontSize="12" color="#888888" backgroundColor="#222222" borderColor="#666666" borderWidth="1" borderRadius="4" padding="4" width="100" textAlign="center" cursor="pointer">BACK</text>
+<container flexDirection="column" alignItems="center" justifyContent="center" gap="3" width="300" height="340">
+  <text fontSize="18" fontWeight="bold" color="#44ff44" marginBottom="4">STATISTICS</text>
+  <text name="stat-games" fontSize="11" color="#aaaaaa" width="260">Games: 0</text>
+  <text name="stat-kills" fontSize="11" color="#aaaaaa" width="260">Kills: 0</text>
+  <text name="stat-shots" fontSize="11" color="#aaaaaa" width="260">Shots: 0</text>
+  <text name="stat-deaths" fontSize="11" color="#aaaaaa" width="260">Deaths: 0</text>
+  <text name="stat-bosses" fontSize="11" color="#aaaaaa" width="260">Bosses: 0</text>
+  <text name="stat-combo" fontSize="11" color="#aaaaaa" width="260">Max Combo: x0</text>
+  <text name="stat-stage" fontSize="11" color="#aaaaaa" width="260">Max Stage: 0</text>
+  <text name="stat-level" fontSize="11" color="#aaaaaa" width="260">Level: 1</text>
+  <text name="stat-time" fontSize="11" color="#aaaaaa" width="260">Play Time: 0m</text>
+  <text name="stat-powerups" fontSize="11" color="#aaaaaa" width="260">Power-ups: 0</text>
+  <text name="btn-stats-back" fontSize="12" color="#aaaaaa" backgroundColor="#222222" borderRadius="4" padding="5" width="120" textAlign="center" cursor="pointer" marginTop="6">BACK</text>
 </container>

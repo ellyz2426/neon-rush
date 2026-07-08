@@ -1,38 +1,25 @@
-<container flexDirection="column" alignItems="center" justifyContent="center" gap="4" width="300" height="350">
-  <text fontSize="18" fontWeight="bold" color="#8888ff">SETTINGS</text>
-  <container flexDirection="column" gap="3" width="260">
-    <container flexDirection="row" justifyContent="space-between" alignItems="center">
-      <text fontSize="10" color="#aaaaaa">Master Volume</text>
-      <container flexDirection="row" gap="2" alignItems="center">
-        <text name="btn-master-down" fontSize="12" color="#888888" cursor="pointer">-</text>
-        <text name="master-vol" fontSize="10" color="#00ffff">80%</text>
-        <text name="btn-master-up" fontSize="12" color="#888888" cursor="pointer">+</text>
-      </container>
-    </container>
-    <container flexDirection="row" justifyContent="space-between" alignItems="center">
-      <text fontSize="10" color="#aaaaaa">SFX Volume</text>
-      <container flexDirection="row" gap="2" alignItems="center">
-        <text name="btn-sfx-down" fontSize="12" color="#888888" cursor="pointer">-</text>
-        <text name="sfx-vol" fontSize="10" color="#00ffff">80%</text>
-        <text name="btn-sfx-up" fontSize="12" color="#888888" cursor="pointer">+</text>
-      </container>
-    </container>
-    <container flexDirection="row" justifyContent="space-between" alignItems="center">
-      <text fontSize="10" color="#aaaaaa">Music Volume</text>
-      <container flexDirection="row" gap="2" alignItems="center">
-        <text name="btn-music-down" fontSize="12" color="#888888" cursor="pointer">-</text>
-        <text name="music-vol" fontSize="10" color="#00ffff">80%</text>
-        <text name="btn-music-up" fontSize="12" color="#888888" cursor="pointer">+</text>
-      </container>
-    </container>
-    <container flexDirection="row" justifyContent="space-between" alignItems="center">
-      <text fontSize="10" color="#aaaaaa">Theme</text>
-      <container flexDirection="row" gap="2" alignItems="center">
-        <text name="btn-theme-prev" fontSize="12" color="#888888" cursor="pointer"><</text>
-        <text name="theme-name" fontSize="10" color="#00ffff">Neon Holodeck</text>
-        <text name="btn-theme-next" fontSize="12" color="#888888" cursor="pointer">></text>
-      </container>
-    </container>
+<container flexDirection="column" alignItems="center" justifyContent="center" gap="4" width="300" height="380">
+  <text fontSize="18" fontWeight="bold" color="#8888ff" marginBottom="4">SETTINGS</text>
+  <container flexDirection="row" justifyContent="space-between" width="250" gap="8">
+    <text name="btn-sfx" fontSize="12" color="#00ffff" backgroundColor="#003333" borderRadius="4" padding="5" width="110" textAlign="center" cursor="pointer">SFX</text>
+    <text name="sfx-val" fontSize="12" color="#44ff44">ON</text>
   </container>
-  <text name="btn-back" fontSize="12" color="#888888" backgroundColor="#222222" borderColor="#666666" borderWidth="1" borderRadius="4" padding="4" width="100" textAlign="center" cursor="pointer">BACK</text>
+  <container flexDirection="row" justifyContent="space-between" width="250" gap="8">
+    <text name="btn-music" fontSize="12" color="#00ffff" backgroundColor="#003333" borderRadius="4" padding="5" width="110" textAlign="center" cursor="pointer">MUSIC</text>
+    <text name="music-val" fontSize="12" color="#44ff44">ON</text>
+  </container>
+  <container flexDirection="row" justifyContent="space-between" width="250" gap="8">
+    <text name="btn-particles" fontSize="12" color="#00ffff" backgroundColor="#003333" borderRadius="4" padding="5" width="110" textAlign="center" cursor="pointer">PARTICLES</text>
+    <text name="particles-val" fontSize="12" color="#44ff44">ON</text>
+  </container>
+  <container flexDirection="row" justifyContent="space-between" width="250" gap="8">
+    <text name="btn-shake" fontSize="12" color="#00ffff" backgroundColor="#003333" borderRadius="4" padding="5" width="110" textAlign="center" cursor="pointer">SCREENSHAKE</text>
+    <text name="shake-val" fontSize="12" color="#44ff44">ON</text>
+  </container>
+  <container flexDirection="row" justifyContent="space-between" width="250" gap="8">
+    <text name="btn-theme" fontSize="12" color="#ffaa00" backgroundColor="#332200" borderRadius="4" padding="5" width="110" textAlign="center" cursor="pointer">THEME</text>
+    <text name="theme-val" fontSize="10" color="#ffaa00">Neon Holodeck</text>
+  </container>
+  <text name="btn-reset" fontSize="12" color="#ff4444" backgroundColor="#330000" borderColor="#ff4444" borderWidth="1" borderRadius="4" padding="5" width="180" textAlign="center" cursor="pointer" marginTop="4">RESET ALL DATA</text>
+  <text name="btn-settings-back" fontSize="12" color="#aaaaaa" backgroundColor="#222222" borderRadius="4" padding="5" width="120" textAlign="center" cursor="pointer" marginTop="4">BACK</text>
 </container>

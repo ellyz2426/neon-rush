@@ -1,26 +1,29 @@
-<container flexDirection="column" alignItems="center" justifyContent="center" gap="2" width="320" height="400">
-  <text fontSize="18" fontWeight="bold" color="#ff44ff">ACHIEVEMENTS</text>
-  <container flexDirection="column" gap="1" width="300">
-    <text name="ach-1" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-2" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-3" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-4" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-5" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-6" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-7" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-8" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-9" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-10" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-11" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-12" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-13" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-14" fontSize="9" color="#888888">[ ] ---</text>
-    <text name="ach-15" fontSize="9" color="#888888">[ ] ---</text>
-  </container>
-  <container flexDirection="row" gap="4" justifyContent="center">
-    <text name="btn-prev" fontSize="10" color="#888888" backgroundColor="#222222" borderColor="#666666" borderWidth="1" borderRadius="3" padding="3" width="60" textAlign="center" cursor="pointer">PREV</text>
-    <text name="page-label" fontSize="10" color="#888888">1/3</text>
-    <text name="btn-next" fontSize="10" color="#888888" backgroundColor="#222222" borderColor="#666666" borderWidth="1" borderRadius="3" padding="3" width="60" textAlign="center" cursor="pointer">NEXT</text>
-  </container>
-  <text name="btn-back" fontSize="12" color="#888888" backgroundColor="#222222" borderColor="#666666" borderWidth="1" borderRadius="4" padding="4" width="100" textAlign="center" cursor="pointer">BACK</text>
+<container flexDirection="column" alignItems="center" justifyContent="center" gap="2" width="320" height="420">
+  <text fontSize="18" fontWeight="bold" color="#ff44ff" marginBottom="4">ACHIEVEMENTS</text>
+  <text name="ach-progress" fontSize="10" color="#aaaaaa" marginBottom="4">0/42 Unlocked</text>
+  <text name="ach-0" fontSize="9" color="#888888" width="290">[ ] First Blood</text>
+  <text name="ach-desc-0" fontSize="7" color="#555555" width="290">Destroy your first enemy</text>
+  <text name="ach-1" fontSize="9" color="#888888" width="290">[ ] Ace Pilot</text>
+  <text name="ach-desc-1" fontSize="7" color="#555555" width="290">Destroy 50 enemies total</text>
+  <text name="ach-2" fontSize="9" color="#888888" width="290">[ ] Squadron Leader</text>
+  <text name="ach-desc-2" fontSize="7" color="#555555" width="290">Destroy 200 enemies</text>
+  <text name="ach-3" fontSize="9" color="#888888" width="290">[ ] Fleet Commander</text>
+  <text name="ach-desc-3" fontSize="7" color="#555555" width="290">500 total kills</text>
+  <text name="ach-4" fontSize="9" color="#888888" width="290">[ ] Rising Star</text>
+  <text name="ach-desc-4" fontSize="7" color="#555555" width="290">Score 5,000 points</text>
+  <text name="ach-5" fontSize="9" color="#888888" width="290">[ ] Combo Starter</text>
+  <text name="ach-desc-5" fontSize="7" color="#555555" width="290">Get a x5 combo</text>
+  <text name="ach-6" fontSize="9" color="#888888" width="290">[ ] Boss Slayer</text>
+  <text name="ach-desc-6" fontSize="7" color="#555555" width="290">Defeat a boss</text>
+  <text name="ach-7" fontSize="9" color="#888888" width="290">[ ] Regular</text>
+  <text name="ach-desc-7" fontSize="7" color="#555555" width="290">Play 5 games</text>
+  <text name="ach-8" fontSize="9" color="#888888" width="290">[ ] Sector 3</text>
+  <text name="ach-desc-8" fontSize="7" color="#555555" width="290">Reach stage 3</text>
+  <text name="ach-9" fontSize="9" color="#888888" width="290">[ ] Collector</text>
+  <text name="ach-desc-9" fontSize="7" color="#555555" width="290">Collect 10 power-ups</text>
+  <text name="ach-10" fontSize="9" color="#888888" width="290">[ ] Trigger Happy</text>
+  <text name="ach-desc-10" fontSize="7" color="#555555" width="290">Fire 500 shots</text>
+  <text name="ach-11" fontSize="9" color="#888888" width="290">[ ] Rank Up</text>
+  <text name="ach-desc-11" fontSize="7" color="#555555" width="290">Reach level 5</text>
+  <text name="btn-ach-back" fontSize="12" color="#aaaaaa" backgroundColor="#222222" borderRadius="4" padding="5" width="120" textAlign="center" cursor="pointer" marginTop="4">BACK</text>
 </container>

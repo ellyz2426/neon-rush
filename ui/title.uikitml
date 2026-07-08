@@ -1,14 +1,16 @@
-<container flexDirection="column" alignItems="center" justifyContent="center" gap="6" width="320" height="400">
+<container flexDirection="column" alignItems="center" justifyContent="center" gap="6" width="320" height="420">
   <text fontSize="28" fontWeight="bold" color="#00ffff">NEON RUSH VR</text>
-  <text fontSize="10" color="#88cccc">Sliding Block Puzzle</text>
-  <container flexDirection="column" gap="4" alignItems="center" width="280">
+  <text fontSize="10" color="#88cccc">Side-Scrolling Shoot-em-Up</text>
+  <text name="level-text" fontSize="9" color="#888888">Lv.1</text>
+  <text name="xp-text" fontSize="8" color="#666666">XP: 0/500</text>
+  <text name="highscore-text" fontSize="10" color="#ffaa00">No scores yet</text>
+  <container flexDirection="column" gap="4" alignItems="center" width="280" marginTop="4">
     <text name="btn-play" fontSize="14" fontWeight="bold" color="#00ffff" backgroundColor="#003344" borderColor="#00ffff" borderWidth="1" borderRadius="4" padding="6" width="220" textAlign="center" cursor="pointer">PLAY</text>
-    <text name="btn-scores" fontSize="14" fontWeight="bold" color="#ffaa00" backgroundColor="#332200" borderColor="#ffaa00" borderWidth="1" borderRadius="4" padding="6" width="220" textAlign="center" cursor="pointer">LEADERBOARD</text>
+    <text name="btn-leaderboard" fontSize="14" fontWeight="bold" color="#ffaa00" backgroundColor="#332200" borderColor="#ffaa00" borderWidth="1" borderRadius="4" padding="6" width="220" textAlign="center" cursor="pointer">LEADERBOARD</text>
     <text name="btn-achievements" fontSize="14" fontWeight="bold" color="#ff44ff" backgroundColor="#330033" borderColor="#ff44ff" borderWidth="1" borderRadius="4" padding="6" width="220" textAlign="center" cursor="pointer">ACHIEVEMENTS</text>
-    <text name="btn-stats" fontSize="14" fontWeight="bold" color="#44ff44" backgroundColor="#003300" borderColor="#44ff44" borderWidth="1" borderRadius="4" padding="6" width="220" textAlign="center" cursor="pointer">STATS</text>
-    <text name="btn-skins" fontSize="14" fontWeight="bold" color="#ff8844" backgroundColor="#331100" borderColor="#ff8844" borderWidth="1" borderRadius="4" padding="6" width="220" textAlign="center" cursor="pointer">BLOCK SKINS</text>
+    <text name="btn-skins" fontSize="14" fontWeight="bold" color="#ff8844" backgroundColor="#331100" borderColor="#ff8844" borderWidth="1" borderRadius="4" padding="6" width="220" textAlign="center" cursor="pointer">SHIP SKINS</text>
+    <text name="btn-stats" fontSize="14" fontWeight="bold" color="#44ff44" backgroundColor="#003300" borderColor="#44ff44" borderWidth="1" borderRadius="4" padding="6" width="220" textAlign="center" cursor="pointer">STATISTICS</text>
     <text name="btn-settings" fontSize="14" fontWeight="bold" color="#8888ff" backgroundColor="#111133" borderColor="#8888ff" borderWidth="1" borderRadius="4" padding="6" width="220" textAlign="center" cursor="pointer">SETTINGS</text>
-    <text name="btn-help" fontSize="14" fontWeight="bold" color="#aaaaaa" backgroundColor="#222222" borderColor="#aaaaaa" borderWidth="1" borderRadius="4" padding="6" width="220" textAlign="center" cursor="pointer">HELP</text>
+    <text name="btn-help" fontSize="14" fontWeight="bold" color="#aaaaaa" backgroundColor="#222222" borderColor="#aaaaaa" borderWidth="1" borderRadius="4" padding="6" width="220" textAlign="center" cursor="pointer">HOW TO PLAY</text>
   </container>
-  <text name="level-display" fontSize="9" color="#888888">Level 1 -- Novice</text>
 </container>

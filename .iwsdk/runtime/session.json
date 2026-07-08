@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
-  "sessionId": "828ecffd-7548-4362-a6fa-12a687fd9e0a",
-  "workspaceRoot": "/home/hatch/workspace/neon-peg",
-  "pid": 7485,
-  "port": 8081,
-  "localUrl": "http://localhost:8081/",
+  "sessionId": "a3f9eaff-7d16-41e2-b72d-679948f10464",
+  "workspaceRoot": "/home/hatch/workspace/neon-rush",
+  "pid": 5622,
+  "port": 5174,
+  "localUrl": "http://localhost:5174/",
   "networkUrls": [
-    "http://198.19.0.2:8081/"
+    "http://198.19.0.2:5174/"
   ],
   "aiMode": "agent",
   "browser": {
@@ -14,9 +14,9 @@
     "connected": true,
     "commandReady": false,
     "connectedClientCount": 1,
-    "lastTransitionAt": "2026-07-07T19:17:49.977Z",
-    "lastBridgeConnectedAt": "2026-07-07T19:17:49.977Z"
+    "lastTransitionAt": "2026-07-08T22:11:31.162Z",
+    "lastBridgeConnectedAt": "2026-07-08T22:11:31.162Z"
   },
   "registeredAt": "2026-07-07T19:16:50.169Z",
-  "updatedAt": "2026-07-07T19:17:49.985Z"
+  "updatedAt": "2026-07-08T22:11:31.169Z"
 }

@@ -1,0 +1,3 @@
+<container flexDirection="row" justifyContent="center" alignItems="center" width="300" height="24" backgroundColor="#00000066" borderRadius="4" padding="2">
+  <text name="powerup-text" fontSize="10" fontWeight="bold" color="#ffaa00" textAlign="center">SPREAD 10s</text>
+</container>

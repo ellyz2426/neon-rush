@@ -1,0 +1,4 @@
+<container flexDirection="row" justifyContent="space-between" alignItems="center" width="300" height="24" backgroundColor="#33000088" borderRadius="4" padding="2" gap="8">
+  <text name="boss-name" fontSize="10" fontWeight="bold" color="#ff4444">BOSS</text>
+  <text name="boss-hp" fontSize="10" fontWeight="bold" color="#ff8800">100%</text>
+</container>

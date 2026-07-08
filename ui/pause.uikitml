@@ -1,8 +1,5 @@
 <container flexDirection="column" alignItems="center" justifyContent="center" gap="6" width="280" height="180">
-  <text fontSize="18" fontWeight="bold" color="#ffaa00">PAUSED</text>
-  <container flexDirection="column" gap="4" alignItems="center">
-    <text name="btn-resume" fontSize="14" fontWeight="bold" color="#44ff44" backgroundColor="#003300" borderColor="#44ff44" borderWidth="1" borderRadius="4" padding="6" width="180" textAlign="center" cursor="pointer">RESUME</text>
-    <text name="btn-restart" fontSize="14" fontWeight="bold" color="#ffaa00" backgroundColor="#332200" borderColor="#ffaa00" borderWidth="1" borderRadius="4" padding="6" width="180" textAlign="center" cursor="pointer">RESTART</text>
-    <text name="btn-quit" fontSize="14" fontWeight="bold" color="#ff4444" backgroundColor="#330000" borderColor="#ff4444" borderWidth="1" borderRadius="4" padding="6" width="180" textAlign="center" cursor="pointer">QUIT</text>
-  </container>
+  <text fontSize="22" fontWeight="bold" color="#ffaa00">PAUSED</text>
+  <text name="btn-resume" fontSize="14" fontWeight="bold" color="#00ffff" backgroundColor="#003344" borderColor="#00ffff" borderWidth="1" borderRadius="4" padding="6" width="180" textAlign="center" cursor="pointer">RESUME</text>
+  <text name="btn-quit" fontSize="14" fontWeight="bold" color="#ff4444" backgroundColor="#330000" borderColor="#ff4444" borderWidth="1" borderRadius="4" padding="6" width="180" textAlign="center" cursor="pointer">QUIT TO MENU</text>
 </container>

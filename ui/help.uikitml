@@ -1,28 +1,22 @@
 <container flexDirection="column" alignItems="center" justifyContent="center" gap="3" width="320" height="400">
-  <text fontSize="18" fontWeight="bold" color="#aaaaaa">HELP</text>
-  <container flexDirection="column" gap="2" width="290">
-    <text fontSize="12" fontWeight="bold" color="#00ffff">Browser Controls</text>
-    <text fontSize="9" color="#aaaaaa">Click + Drag: Slide block</text>
-    <text fontSize="9" color="#aaaaaa">R: Restart puzzle</text>
-    <text fontSize="9" color="#aaaaaa">U: Undo last move</text>
-    <text fontSize="9" color="#aaaaaa">H: Show hint</text>
-    <text fontSize="9" color="#aaaaaa">ESC / P: Pause</text>
-    <text fontSize="12" fontWeight="bold" color="#00ffff">VR Controls</text>
-    <text fontSize="9" color="#aaaaaa">Trigger: Select/Slide block</text>
-    <text fontSize="9" color="#aaaaaa">Thumbstick: Slide direction</text>
-    <text fontSize="9" color="#aaaaaa">B: Pause</text>
-    <text fontSize="9" color="#aaaaaa">A: Undo</text>
-    <text fontSize="12" fontWeight="bold" color="#ffaa00">How to Play</text>
-    <text fontSize="9" color="#aaaaaa">Slide blocks to clear a path</text>
-    <text fontSize="9" color="#aaaaaa">for the GOLD block to reach</text>
-    <text fontSize="9" color="#aaaaaa">the EXIT on the right side.</text>
-    <text fontSize="9" color="#aaaaaa">Blocks slide only along their</text>
-    <text fontSize="9" color="#aaaaaa">orientation (H or V).</text>
-    <text fontSize="12" fontWeight="bold" color="#44ff44">Scoring</text>
-    <text fontSize="9" color="#aaaaaa">Base: 1000 per puzzle</text>
-    <text fontSize="9" color="#aaaaaa">Move bonus: fewer = more pts</text>
-    <text fontSize="9" color="#aaaaaa">Time bonus: faster = more pts</text>
-    <text fontSize="9" color="#aaaaaa">Stars: 1-3 based on moves</text>
-  </container>
-  <text name="btn-back" fontSize="12" color="#888888" backgroundColor="#222222" borderColor="#666666" borderWidth="1" borderRadius="4" padding="4" width="100" textAlign="center" cursor="pointer">BACK</text>
+  <text fontSize="18" fontWeight="bold" color="#aaaaaa" marginBottom="4">HOW TO PLAY</text>
+  <text fontSize="10" color="#00ffff" width="280">CONTROLS (Keyboard):</text>
+  <text fontSize="9" color="#cccccc" width="280">WASD / Arrow Keys - Move ship</text>
+  <text fontSize="9" color="#cccccc" width="280">Space / Z - Shoot</text>
+  <text fontSize="9" color="#cccccc" width="280">Escape / P - Pause</text>
+  <text fontSize="10" color="#00ffff" width="280" marginTop="4">CONTROLS (VR):</text>
+  <text fontSize="9" color="#cccccc" width="280">Right thumbstick - Move</text>
+  <text fontSize="9" color="#cccccc" width="280">Right trigger - Shoot</text>
+  <text fontSize="9" color="#cccccc" width="280">B button - Pause</text>
+  <text fontSize="10" color="#ffaa00" width="280" marginTop="4">POWER-UPS:</text>
+  <text fontSize="9" color="#ff8800" width="280">Spread - Triple shot</text>
+  <text fontSize="9" color="#00ff88" width="280">Laser - High damage beam</text>
+  <text fontSize="9" color="#ff4444" width="280">Missile - Homing shots</text>
+  <text fontSize="9" color="#4488ff" width="280">Shield - Block 1 hit</text>
+  <text fontSize="9" color="#ffff00" width="280">Speed - Move faster</text>
+  <text fontSize="10" color="#ff44ff" width="280" marginTop="4">TIPS:</text>
+  <text fontSize="9" color="#cccccc" width="280">Destroy enemies for combos</text>
+  <text fontSize="9" color="#cccccc" width="280">Kill enough to face the boss</text>
+  <text fontSize="9" color="#cccccc" width="280">Earn XP to level up</text>
+  <text name="btn-help-back" fontSize="12" color="#aaaaaa" backgroundColor="#222222" borderRadius="4" padding="5" width="120" textAlign="center" cursor="pointer" marginTop="6">BACK</text>
 </container>

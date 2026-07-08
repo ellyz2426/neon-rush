@@ -6,15 +6,16 @@ import {
   UIKitDocument,
   UIKit,
   Follower,
-  ScreenSpace,
   InputComponent,
   eq,
   SphereGeometry,
   MeshStandardMaterial,
+  MeshBasicMaterial,
   BoxGeometry,
   CylinderGeometry,
   TorusGeometry,
   OctahedronGeometry,
+  IcosahedronGeometry,
   Mesh,
   Group,
   Color,
@@ -25,1289 +26,2100 @@ import {
   AmbientLight,
   FogExp2,
   LineSegments,
-  IcosahedronGeometry,
   EdgesGeometry,
+  Object3D,
   type Entity,
 } from '@iwsdk/core';
 
-// ─── Types & Constants ──────────────────────────────────────────────
-type GameState = 'title' | 'modes' | 'difficulty' | 'countdown' | 'playing' | 'gameover' | 'paused'
-  | 'leaderboard' | 'achievements' | 'settings' | 'stats' | 'skins' | 'help';
+// ─── Types ──────────────────────────────────────────────────────────
+type GameState =
+  | 'title' | 'modes' | 'difficulty' | 'countdown' | 'playing'
+  | 'gameover' | 'paused' | 'leaderboard' | 'achievements'
+  | 'settings' | 'stats' | 'skins' | 'help';
 
-interface Peg {
-  mesh: Mesh; glow: Mesh; type: 'orange' | 'blue' | 'green' | 'purple';
-  x: number; y: number; radius: number; hit: boolean; fadeTimer: number;
+type EnemyType = 'straight' | 'sine' | 'dive' | 'circle' | 'formation' | 'turret' | 'tank' | 'boss';
+type PowerUpType = 'spread' | 'laser' | 'missile' | 'shield' | 'speed';
+type Difficulty = 'easy' | 'normal' | 'hard' | 'insane';
+
+interface Enemy {
+  mesh: Mesh;
+  group: Group;
+  type: EnemyType;
+  x: number; y: number;
+  vx: number; vy: number;
+  hp: number; maxHp: number;
+  points: number;
+  timer: number;
+  baseY: number;
+  fireTimer: number;
+  active: boolean;
 }
 
-interface Ball {
-  mesh: Mesh; glow: Mesh; trail: Vector3[];
-  vx: number; vy: number; x: number; y: number; radius: number; active: boolean;
+interface Bullet {
+  mesh: Mesh;
+  x: number; y: number;
+  vx: number; vy: number;
+  damage: number;
+  isPlayer: boolean;
+  active: boolean;
+}
+
+interface PowerUp {
+  mesh: Mesh;
+  group: Group;
+  type: PowerUpType;
+  x: number; y: number;
+  active: boolean;
+  timer: number;
 }
 
 interface Particle {
-  mesh: Mesh; vx: number; vy: number; life: number; maxLife: number; active: boolean;
+  mesh: Mesh;
+  x: number; y: number;
+  vx: number; vy: number;
+  life: number;
+  maxLife: number;
+  active: boolean;
 }
 
-const BOARD_W = 6, BOARD_H = 8, PEG_R = 0.08;
-const GRAVITY = -4.5, BALL_R = 0.06;
-const WALL_L = -BOARD_W / 2, WALL_R = BOARD_W / 2;
-const CEIL_Y = BOARD_H / 2, FLOOR_Y = -BOARD_H / 2 - 0.5;
+interface TrailParticle {
+  mesh: Mesh;
+  life: number;
+  maxLife: number;
+  active: boolean;
+}
+
+interface Debris {
+  mesh: Mesh;
+  group: Group;
+  x: number; y: number;
+  vx: number;
+  rotSpeed: number;
+  active: boolean;
+}
+
+interface PlayerState {
+  x: number; y: number;
+  speed: number;
+  fireRate: number;
+  fireTimer: number;
+  weapon: 'normal' | 'spread' | 'laser' | 'missile';
+  weaponTimer: number;
+  shielded: boolean;
+  shieldTimer: number;
+  speedBoost: boolean;
+  speedTimer: number;
+  lives: number;
+  invincible: boolean;
+  invincTimer: number;
+  mesh: Mesh | null;
+  group: Group | null;
+  shieldMesh: Mesh | null;
+}
+
+interface BossState {
+  active: boolean;
+  phase: number;
+  hp: number;
+  maxHp: number;
+  timer: number;
+  patternTimer: number;
+  enemy: Enemy | null;
+}
+
+interface Achievement {
+  id: string;
+  name: string;
+  desc: string;
+  check: (s: SaveData) => boolean;
+}
+
+interface SaveData {
+  highScores: { name: string; score: number; mode: string; date: string }[];
+  totalKills: number;
+  totalShots: number;
+  totalDeaths: number;
+  totalGames: number;
+  totalPlayTime: number;
+  totalPowerUps: number;
+  totalBossKills: number;
+  maxCombo: number;
+  maxStage: number;
+  achievements: string[];
+  unlockedSkins: string[];
+  selectedSkin: number;
+  selectedTheme: number;
+  xp: number;
+  level: number;
+  settings: { sfx: boolean; music: boolean; particles: boolean; screenShake: boolean };
+}
+
+// ─── Constants ──────────────────────────────────────────────────────
+const FIELD_W = 12, FIELD_H = 7;
+const FIELD_Z = -6;
+const SCROLL_SPEED = 2.0;
+const PLAYER_SPEED = 5.0;
+const BULLET_SPEED = 12;
+const ENEMY_BULLET_SPEED = 5;
+const FIRE_RATE = 0.15;
+const XP_PER_LEVEL = 500;
 
 const THEMES = [
-  { name: 'Neon Holodeck', grid: '#004444', accent: '#00ffff', bg: '#000a0a', fog: '#001111', wall: '#003333', orange: '#ff6600', blue: '#4488ff', green: '#00ff88', purple: '#aa44ff', ball: '#00ffff', glow: '#00ffff' },
-  { name: 'Crimson Grid', grid: '#440000', accent: '#ff4444', bg: '#0a0000', fog: '#110000', wall: '#330000', orange: '#ff8800', blue: '#6688ff', green: '#88ff44', purple: '#cc44ff', ball: '#ff4444', glow: '#ff6666' },
-  { name: 'Toxic Neon', grid: '#004400', accent: '#44ff44', bg: '#000a00', fog: '#001100', wall: '#003300', orange: '#ffaa00', blue: '#44aaff', green: '#66ff66', purple: '#ff44ff', ball: '#44ff44', glow: '#66ff66' },
-  { name: 'Ultra Violet', grid: '#220044', accent: '#aa66ff', bg: '#050008', fog: '#080011', wall: '#330055', orange: '#ff6644', blue: '#6688ff', green: '#44ffaa', purple: '#cc66ff', ball: '#aa66ff', glow: '#cc88ff' },
-  { name: 'Solar Blaze', grid: '#442200', accent: '#ffaa44', bg: '#0a0500', fog: '#110800', wall: '#332200', orange: '#ff4400', blue: '#4488ff', green: '#88ff66', purple: '#ff66aa', ball: '#ffaa44', glow: '#ffcc66' },
+  { name: 'Neon Holodeck', grid: '#004444', accent: '#00ffff', bg: '#000a0a', fog: '#001111', wall: '#003333', player: '#00ffff', enemy: '#ff4444', bullet: '#00ffff', powerup: '#ffff00' },
+  { name: 'Crimson Grid', grid: '#440000', accent: '#ff4444', bg: '#0a0000', fog: '#110000', wall: '#330000', player: '#ff6666', enemy: '#44ff44', bullet: '#ff4444', powerup: '#ffaa00' },
+  { name: 'Toxic Neon', grid: '#004400', accent: '#44ff44', bg: '#000a00', fog: '#001100', wall: '#003300', player: '#66ff66', enemy: '#ff44ff', bullet: '#44ff44', powerup: '#44aaff' },
+  { name: 'Ultra Violet', grid: '#220044', accent: '#aa66ff', bg: '#050008', fog: '#080011', wall: '#330055', player: '#aa66ff', enemy: '#ffaa44', bullet: '#aa66ff', powerup: '#66ffaa' },
+  { name: 'Solar Blaze', grid: '#442200', accent: '#ffaa44', bg: '#0a0500', fog: '#110800', wall: '#332200', player: '#ffaa44', enemy: '#44aaff', bullet: '#ffaa44', powerup: '#ff66aa' },
 ];
 
 const SKINS = [
   { name: 'Neon Cyan', color: '#00ffff', emissive: '#00aaaa', unlock: 'default' },
-  { name: 'Solar Flare', color: '#ff6600', emissive: '#aa4400', unlock: '50 pegs' },
-  { name: 'Plasma Pink', color: '#ff66ff', emissive: '#aa44aa', unlock: '5K score' },
+  { name: 'Solar Flare', color: '#ff6600', emissive: '#aa4400', unlock: '100 kills' },
+  { name: 'Plasma Pink', color: '#ff66ff', emissive: '#aa44aa', unlock: '10K score' },
   { name: 'Frost Core', color: '#66ccff', emissive: '#4488aa', unlock: '10 games' },
-  { name: 'Toxic Green', color: '#66ff66', emissive: '#44aa44', unlock: 'x5 combo' },
-  { name: 'Royal Gold', color: '#ffaa00', emissive: '#aa7700', unlock: 'clear level' },
-  { name: 'Void Purple', color: '#aa66ff', emissive: '#7744aa', unlock: '80% acc' },
-  { name: 'Inferno Red', color: '#ff4444', emissive: '#aa2222', unlock: 'all modes' },
+  { name: 'Toxic Green', color: '#66ff66', emissive: '#44aa44', unlock: 'x10 combo' },
+  { name: 'Royal Gold', color: '#ffaa00', emissive: '#aa7700', unlock: 'Beat boss' },
+  { name: 'Void Purple', color: '#aa66ff', emissive: '#7744aa', unlock: 'Stage 5' },
+  { name: 'Inferno Red', color: '#ff4444', emissive: '#aa2222', unlock: 'All modes' },
 ];
 
 const MODES = ['campaign', 'quickplay', 'timed', 'zen', 'daily', 'fever', 'precision', 'endless'] as const;
+type GameMode = typeof MODES[number];
 
-interface Achievement { id: string; name: string; desc: string; }
 const ACHIEVEMENTS: Achievement[] = [
-  { id: 'first_hit', name: 'First Contact', desc: 'Hit your first peg' },
-  { id: 'ten_pegs', name: 'Getting Started', desc: 'Hit 10 pegs total' },
-  { id: 'fifty_pegs', name: 'Peg Hunter', desc: 'Hit 50 pegs total' },
-  { id: 'hundred_pegs', name: 'Peg Destroyer', desc: 'Hit 100 pegs total' },
-  { id: 'five_hundred_pegs', name: 'Peg Legend', desc: 'Hit 500 pegs total' },
-  { id: 'score_1k', name: 'Scorer', desc: 'Score 1,000 in one game' },
-  { id: 'score_5k', name: 'High Scorer', desc: 'Score 5,000 in one game' },
-  { id: 'score_10k', name: 'Score Master', desc: 'Score 10,000 in one game' },
-  { id: 'score_25k', name: 'Score Legend', desc: 'Score 25,000 in one game' },
-  { id: 'combo_3', name: 'Combo Starter', desc: 'Reach x3 combo' },
-  { id: 'combo_5', name: 'Combo Builder', desc: 'Reach x5 combo' },
-  { id: 'combo_8', name: 'Combo Master', desc: 'Reach x8 combo' },
-  { id: 'combo_10', name: 'Combo Legend', desc: 'Reach x10 combo' },
-  { id: 'clear_level', name: 'Level Clear', desc: 'Clear all orange pegs' },
-  { id: 'perfect_clear', name: 'Perfect Clear', desc: 'Clear ALL pegs in a level' },
-  { id: 'fever_catch', name: 'Fever!', desc: 'Catch ball in fever bucket' },
-  { id: 'fever_5', name: 'Fever Fan', desc: 'Catch 5 fever buckets' },
-  { id: 'fever_10', name: 'Fever Master', desc: 'Catch 10 fever buckets' },
-  { id: 'green_hit', name: 'Power Up', desc: 'Hit a green power peg' },
-  { id: 'purple_hit', name: 'Purple Rain', desc: 'Hit a purple peg' },
-  { id: 'multiball', name: 'Multi Madness', desc: 'Activate multiball' },
-  { id: 'no_miss', name: 'Sharpshooter', desc: 'Hit 5+ pegs with one ball' },
-  { id: 'ten_one_shot', name: 'Cascade King', desc: 'Hit 10+ pegs with one ball' },
-  { id: 'games_10', name: 'Regular', desc: 'Play 10 games' },
-  { id: 'games_50', name: 'Dedicated', desc: 'Play 50 games' },
-  { id: 'daily_done', name: 'Daily Player', desc: 'Complete a daily challenge' },
-  { id: 'daily_3', name: 'Daily Streak', desc: '3-day daily streak' },
-  { id: 'all_modes', name: 'Mode Explorer', desc: 'Play all 8 modes' },
-  { id: 'skin_unlock', name: 'Fashionista', desc: 'Unlock a ball skin' },
-  { id: 'theme_all', name: 'Theme Tourist', desc: 'Play in all 5 themes' },
-  { id: 'level_10', name: 'Rising Star', desc: 'Reach level 10' },
-  { id: 'level_25', name: 'Veteran', desc: 'Reach level 25' },
-  { id: 'level_50', name: 'Neon Master', desc: 'Reach level 50' },
-  { id: 'precision_win', name: 'Sniper', desc: 'Clear a level in Precision' },
-  { id: 'zen_100', name: 'Zen Master', desc: 'Hit 100 pegs in Zen mode' },
-  { id: 'endless_5', name: 'Endurance', desc: 'Clear 5 boards in Endless' },
-  { id: 'three_star', name: 'Three Stars', desc: 'Get 3 stars on a level' },
-  { id: 'campaign_5', name: 'Adventurer', desc: 'Clear 5 campaign levels' },
-  { id: 'campaign_10', name: 'Explorer', desc: 'Clear 10 campaign levels' },
-  { id: 'campaign_20', name: 'Champion', desc: 'Clear all 20 campaign levels' },
+  { id: 'first_kill', name: 'First Blood', desc: 'Destroy your first enemy', check: s => s.totalKills >= 1 },
+  { id: 'kill_50', name: 'Ace Pilot', desc: 'Destroy 50 enemies total', check: s => s.totalKills >= 50 },
+  { id: 'kill_200', name: 'Squadron Leader', desc: 'Destroy 200 enemies', check: s => s.totalKills >= 200 },
+  { id: 'kill_500', name: 'Fleet Commander', desc: '500 total kills', check: s => s.totalKills >= 500 },
+  { id: 'kill_1000', name: 'Destroyer of Worlds', desc: '1000 total kills', check: s => s.totalKills >= 1000 },
+  { id: 'score_5k', name: 'Rising Star', desc: 'Score 5,000 points', check: s => s.highScores.some(h => h.score >= 5000) },
+  { id: 'score_25k', name: 'Neon Legend', desc: 'Score 25,000 points', check: s => s.highScores.some(h => h.score >= 25000) },
+  { id: 'score_50k', name: 'Galactic Hero', desc: '50,000 points in one run', check: s => s.highScores.some(h => h.score >= 50000) },
+  { id: 'score_100k', name: 'Cosmic Champion', desc: '100K points', check: s => s.highScores.some(h => h.score >= 100000) },
+  { id: 'combo_5', name: 'Combo Starter', desc: 'Get a x5 combo', check: s => s.maxCombo >= 5 },
+  { id: 'combo_10', name: 'Chain Master', desc: 'Get a x10 combo', check: s => s.maxCombo >= 10 },
+  { id: 'combo_20', name: 'Combo King', desc: 'Get a x20 combo', check: s => s.maxCombo >= 20 },
+  { id: 'combo_50', name: 'Unstoppable', desc: 'x50 combo', check: s => s.maxCombo >= 50 },
+  { id: 'boss_1', name: 'Boss Slayer', desc: 'Defeat a boss', check: s => s.totalBossKills >= 1 },
+  { id: 'boss_5', name: 'Boss Hunter', desc: 'Defeat 5 bosses', check: s => s.totalBossKills >= 5 },
+  { id: 'boss_10', name: 'Nemesis', desc: 'Defeat 10 bosses', check: s => s.totalBossKills >= 10 },
+  { id: 'games_5', name: 'Regular', desc: 'Play 5 games', check: s => s.totalGames >= 5 },
+  { id: 'games_20', name: 'Veteran', desc: 'Play 20 games', check: s => s.totalGames >= 20 },
+  { id: 'games_50', name: 'Dedicated', desc: 'Play 50 games', check: s => s.totalGames >= 50 },
+  { id: 'stage_3', name: 'Sector 3', desc: 'Reach stage 3', check: s => s.maxStage >= 3 },
+  { id: 'stage_5', name: 'Deep Space', desc: 'Reach stage 5', check: s => s.maxStage >= 5 },
+  { id: 'stage_8', name: 'Final Frontier', desc: 'Reach stage 8', check: s => s.maxStage >= 8 },
+  { id: 'powerup_10', name: 'Collector', desc: 'Collect 10 power-ups', check: s => s.totalPowerUps >= 10 },
+  { id: 'powerup_50', name: 'Hoarder', desc: 'Collect 50 power-ups', check: s => s.totalPowerUps >= 50 },
+  { id: 'shots_500', name: 'Trigger Happy', desc: 'Fire 500 shots', check: s => s.totalShots >= 500 },
+  { id: 'shots_2000', name: 'Bullet Storm', desc: 'Fire 2000 shots', check: s => s.totalShots >= 2000 },
+  { id: 'time_30', name: 'Time Invested', desc: 'Play for 30 minutes', check: s => s.totalPlayTime >= 1800 },
+  { id: 'time_120', name: 'Marathon', desc: 'Play for 2 hours', check: s => s.totalPlayTime >= 7200 },
+  { id: 'no_death', name: 'Untouchable', desc: 'Beat stage without dying', check: s => s.maxStage >= 2 },
+  { id: 'level_5', name: 'Rank Up', desc: 'Reach level 5', check: s => s.level >= 5 },
+  { id: 'level_10', name: 'Commander', desc: 'Reach level 10', check: s => s.level >= 10 },
+  { id: 'level_20', name: 'Admiral', desc: 'Reach level 20', check: s => s.level >= 20 },
+  { id: 'all_modes', name: 'Versatile', desc: 'Play all 8 modes', check: s => s.totalGames >= 8 },
+  { id: 'skin_3', name: 'Fashion Pilot', desc: 'Unlock 3 skins', check: s => s.unlockedSkins.length >= 3 },
+  { id: 'skin_all', name: 'Full Wardrobe', desc: 'Unlock all skins', check: s => s.unlockedSkins.length >= 8 },
+  { id: 'perfect_acc', name: 'Sharpshooter', desc: '90%+ accuracy in a run', check: s => s.maxCombo >= 5 },
+  { id: 'death_0', name: 'Flawless', desc: 'Complete a stage without damage', check: s => s.maxStage >= 1 },
+  { id: 'speed_clear', name: 'Speed Runner', desc: 'Clear stage in under 60s', check: s => s.maxStage >= 1 },
+  { id: 'daily_1', name: 'Daily Challenger', desc: 'Complete a daily run', check: s => s.totalGames >= 1 },
+  { id: 'fever_master', name: 'Fever Master', desc: 'Score 10K in fever mode', check: s => s.highScores.some(h => h.score >= 10000 && h.mode === 'fever') },
+  { id: 'zen_10min', name: 'Inner Peace', desc: 'Play zen mode 10 min', check: s => s.totalPlayTime >= 600 },
+  { id: 'precision_50', name: 'Surgical Strike', desc: '50% hit rate in precision', check: s => s.totalShots >= 100 },
 ];
 
-// ─── Save/Load ──────────────────────────────────────────────────────
-interface SaveData {
-  achievements: string[]; leaderboard: { score: number; mode: string; date: string }[];
-  stats: { games: number; totalScore: number; bestScore: number; totalPegs: number; bestCombo: number;
-    ballsUsed: number; levelsCleared: number; perfectClears: number; feverCatches: number; };
-  xp: number; level: number; skin: number; theme: number; volumes: { master: number; sfx: number; music: number; };
-  modesPlayed: string[]; themesUsed: number[]; dailyStreak: number; lastDaily: string;
-  campaignProgress: number; skinsUnlocked: boolean[];
+const DIFFICULTY_MULT: Record<Difficulty, { speed: number; hp: number; fire: number; spawn: number }> = {
+  easy: { speed: 0.7, hp: 0.7, fire: 0.5, spawn: 0.7 },
+  normal: { speed: 1.0, hp: 1.0, fire: 1.0, spawn: 1.0 },
+  hard: { speed: 1.3, hp: 1.5, fire: 1.5, spawn: 1.3 },
+  insane: { speed: 1.6, hp: 2.0, fire: 2.0, spawn: 1.6 },
+};
+
+// ─── Save / Load ────────────────────────────────────────────────────
+const SAVE_KEY = 'neon-rush-save';
+
+function defaultSave(): SaveData {
+  return {
+    highScores: [], totalKills: 0, totalShots: 0, totalDeaths: 0,
+    totalGames: 0, totalPlayTime: 0, totalPowerUps: 0, totalBossKills: 0,
+    maxCombo: 0, maxStage: 0, achievements: [], unlockedSkins: ['Neon Cyan'],
+    selectedSkin: 0, selectedTheme: 0, xp: 0, level: 1,
+    settings: { sfx: true, music: true, particles: true, screenShake: true },
+  };
 }
 
 function loadSave(): SaveData {
   try {
-    const d = JSON.parse(localStorage.getItem('neon-peg-save') || '');
-    return d;
-  } catch {
-    return {
-      achievements: [], leaderboard: [],
-      stats: { games: 0, totalScore: 0, bestScore: 0, totalPegs: 0, bestCombo: 1, ballsUsed: 0, levelsCleared: 0, perfectClears: 0, feverCatches: 0 },
-      xp: 0, level: 1, skin: 0, theme: 0, volumes: { master: 100, sfx: 100, music: 100 },
-      modesPlayed: [], themesUsed: [], dailyStreak: 0, lastDaily: '', campaignProgress: 0,
-      skinsUnlocked: [true, false, false, false, false, false, false, false],
-    };
-  }
-}
-function saveSave(d: SaveData) { localStorage.setItem('neon-peg-save', JSON.stringify(d)); }
-
-// ─── Level Generation ───────────────────────────────────────────────
-function mulberry32(a: number) {
-  return () => { a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a); t ^= t + Math.imul(t ^ t >>> 7, 61 | t);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw) { const d = JSON.parse(raw) as SaveData; return { ...defaultSave(), ...d }; }
+  } catch { /* ignore */ }
+  return defaultSave();
 }
 
-function generatePegs(levelIdx: number, rng: () => number): { x: number; y: number; type: 'orange' | 'blue' | 'green' | 'purple' }[] {
-  const pegs: { x: number; y: number; type: 'orange' | 'blue' | 'green' | 'purple' }[] = [];
-  const rows = 6 + Math.min(levelIdx, 4);
-  const spacing = 0.5;
-  const startY = BOARD_H / 2 - 1.2;
+function writeSave(data: SaveData) {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+}
 
-  for (let r = 0; r < rows; r++) {
-    const cols = 5 + (r % 2 === 0 ? 0 : 1) + Math.min(Math.floor(levelIdx / 3), 3);
-    const offsetX = (r % 2 === 0) ? 0 : spacing / 2;
-    for (let c = 0; c < cols; c++) {
-      const x = -((cols - 1) * spacing) / 2 + c * spacing + offsetX;
-      const y = startY - r * spacing;
-      if (Math.abs(x) > BOARD_W / 2 - 0.3) continue;
-      const roll = rng();
-      let type: 'orange' | 'blue' | 'green' | 'purple';
-      const orangeRate = 0.35 + levelIdx * 0.01;
-      if (roll < orangeRate) type = 'orange';
-      else if (roll < orangeRate + 0.03) type = 'green';
-      else if (roll < orangeRate + 0.05) type = 'purple';
-      else type = 'blue';
-      pegs.push({ x, y, type });
+function checkAchievements(save: SaveData): string[] {
+  const newAch: string[] = [];
+  for (const a of ACHIEVEMENTS) {
+    if (!save.achievements.includes(a.id) && a.check(save)) {
+      save.achievements.push(a.id);
+      newAch.push(a.name);
     }
   }
-  // Guarantee at least 8 orange pegs
-  let orangeCount = pegs.filter(p => p.type === 'orange').length;
-  while (orangeCount < 8) {
-    const idx = Math.floor(rng() * pegs.length);
-    if (pegs[idx].type === 'blue') { pegs[idx].type = 'orange'; orangeCount++; }
+  return newAch;
+}
+
+function addXp(save: SaveData, amount: number): boolean {
+  save.xp += amount;
+  let leveled = false;
+  while (save.xp >= save.level * XP_PER_LEVEL) {
+    save.xp -= save.level * XP_PER_LEVEL;
+    save.level++;
+    leveled = true;
   }
-  return pegs;
+  return leveled;
 }
 
 // ─── Audio Engine ───────────────────────────────────────────────────
 class AudioEngine {
   private ctx: AudioContext | null = null;
-  private masterGain!: GainNode;
-  private sfxGain!: GainNode;
-  private musicGain!: GainNode;
-  private droneOsc1: OscillatorNode | null = null;
-  private droneOsc2: OscillatorNode | null = null;
-  private lfo: OscillatorNode | null = null;
-  volumes = { master: 1, sfx: 1, music: 1 };
+  private enabled = true;
 
-  init() {
-    if (this.ctx) return;
-    this.ctx = new AudioContext();
-    this.masterGain = this.ctx.createGain();
-    this.sfxGain = this.ctx.createGain();
-    this.musicGain = this.ctx.createGain();
-    this.sfxGain.connect(this.masterGain);
-    this.musicGain.connect(this.masterGain);
-    this.masterGain.connect(this.ctx.destination);
+  init() { try { this.ctx = new AudioContext(); } catch { /* no audio */ } }
+
+  setEnabled(v: boolean) { this.enabled = v; }
+
+  play(freq: number, dur: number, type: OscillatorType = 'square', vol = 0.15) {
+    if (!this.ctx || !this.enabled) return;
+    try {
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+      osc.connect(gain).connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + dur);
+    } catch { /* ignore */ }
   }
 
-  setVolumes(master: number, sfx: number, music: number) {
-    this.volumes = { master: master / 100, sfx: sfx / 100, music: music / 100 };
-    if (this.masterGain) this.masterGain.gain.value = this.volumes.master;
-    if (this.sfxGain) this.sfxGain.gain.value = this.volumes.sfx;
-    if (this.musicGain) this.musicGain.gain.value = this.volumes.music;
-  }
-
-  private playSfx(freq: number, type: OscillatorType, dur: number, vol = 0.15) {
-    if (!this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = type;
-    osc.frequency.value = freq * (0.95 + Math.random() * 0.1);
-    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
-    osc.connect(gain);
-    gain.connect(this.sfxGain);
-    osc.start();
-    osc.stop(this.ctx.currentTime + dur);
-  }
-
-  pegHit(combo: number) { this.playSfx(440 + combo * 60, 'sine', 0.2, 0.12); this.playSfx(660 + combo * 40, 'triangle', 0.15, 0.08); }
-  orangeHit() { this.playSfx(880, 'sine', 0.3, 0.15); this.playSfx(1100, 'triangle', 0.2, 0.1); }
-  greenHit() { const t = this.ctx?.currentTime || 0; [660, 880, 1100].forEach((f, i) => setTimeout(() => this.playSfx(f, 'sine', 0.2, 0.12), i * 80)); }
-  purpleHit() { this.playSfx(440, 'sine', 0.3, 0.1); this.playSfx(554, 'triangle', 0.3, 0.08); this.playSfx(660, 'sine', 0.25, 0.1); }
-  launch() { this.playSfx(220, 'triangle', 0.15, 0.1); this.playSfx(330, 'sine', 0.1, 0.08); }
-  wallBounce() { this.playSfx(180, 'square', 0.08, 0.06); }
-  feverCatch() { [660, 880, 1100, 1320, 1540].forEach((f, i) => setTimeout(() => this.playSfx(f, 'sine', 0.2, 0.1), i * 60)); }
-  ballLost() { this.playSfx(330, 'sawtooth', 0.3, 0.08); this.playSfx(220, 'sawtooth', 0.4, 0.06); }
-  levelClear() { [523, 659, 784, 1047, 1318].forEach((f, i) => setTimeout(() => this.playSfx(f, 'sine', 0.3, 0.12), i * 100)); }
-  gameOver() { [440, 349, 293, 220].forEach((f, i) => setTimeout(() => this.playSfx(f, 'triangle', 0.3, 0.1), i * 120)); }
-  countdown() { this.playSfx(440, 'sine', 0.1, 0.08); }
-  countdownGo() { this.playSfx(880, 'sine', 0.2, 0.12); }
-  click() { this.playSfx(660, 'sine', 0.05, 0.06); }
-  achievement() { [660, 784, 880, 1047, 1320].forEach((f, i) => setTimeout(() => this.playSfx(f, 'sine', 0.15, 0.1), i * 70)); }
-
-  startDrone() {
-    if (!this.ctx || this.droneOsc1) return;
-    const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400;
-    this.droneOsc1 = this.ctx.createOscillator(); this.droneOsc1.type = 'sine'; this.droneOsc1.frequency.value = 55;
-    this.droneOsc2 = this.ctx.createOscillator(); this.droneOsc2.type = 'triangle'; this.droneOsc2.frequency.value = 82.5;
-    const g1 = this.ctx.createGain(); g1.gain.value = 0.08;
-    const g2 = this.ctx.createGain(); g2.gain.value = 0.05;
-    this.lfo = this.ctx.createOscillator(); this.lfo.type = 'sine'; this.lfo.frequency.value = 0.15;
-    const lfoGain = this.ctx.createGain(); lfoGain.gain.value = 50;
-    this.lfo.connect(lfoGain); lfoGain.connect(lp.frequency);
-    this.droneOsc1.connect(g1); g1.connect(lp);
-    this.droneOsc2.connect(g2); g2.connect(lp);
-    lp.connect(this.musicGain);
-    this.droneOsc1.start(); this.droneOsc2.start(); this.lfo.start();
-  }
-
-  stopDrone() {
-    this.droneOsc1?.stop(); this.droneOsc2?.stop(); this.lfo?.stop();
-    this.droneOsc1 = this.droneOsc2 = this.lfo = null;
-  }
+  shoot() { this.play(880, 0.08, 'square', 0.1); }
+  hit() { this.play(440, 0.12, 'sawtooth', 0.12); }
+  explosion() { this.play(120, 0.3, 'sawtooth', 0.15); }
+  powerup() { this.play(660, 0.15, 'sine', 0.12); this.play(880, 0.15, 'sine', 0.1); }
+  bossWarning() { this.play(220, 0.5, 'square', 0.15); }
+  death() { this.play(200, 0.4, 'sawtooth', 0.15); }
+  menuClick() { this.play(600, 0.06, 'square', 0.08); }
+  achievement() { this.play(523, 0.15, 'sine', 0.12); this.play(659, 0.15, 'sine', 0.1); this.play(784, 0.2, 'sine', 0.1); }
+  countdown() { this.play(440, 0.1, 'square', 0.1); }
+  gameOver() { this.play(330, 0.3, 'sawtooth', 0.12); this.play(220, 0.5, 'sawtooth', 0.1); }
 }
 
-// ─── App Start ──────────────────────────────────────────────────────
-const container = document.getElementById('app') as HTMLDivElement;
-const world = await (World as any).create(container, {
-  xr: { offer: 'once' as const },
-  browserControls: true,
-  canvasPointerEvents: true,
-});
-
-const audio = new AudioEngine();
-const save = loadSave();
-let gameState: GameState = 'title';
-let currentMode = 'campaign';
-let difficulty = 1; // 0=easy, 1=medium, 2=hard
-let ballsPerGame = [15, 10, 7];
-let aimAngle = 0; // radians from vertical, -PI/3 to PI/3
-let pegs: Peg[] = [];
-let balls: Ball[] = [];
-let particles: Particle[] = [];
-let score = 0, combo = 0, ballsLeft = 10, pegsHitThisShot = 0;
-let totalOrange = 0, orangeCleared = 0, totalPegsHit = 0;
-let bestComboThisGame = 1;
-let levelIdx = save.campaignProgress;
-let shooting = false;
-let feverBucketX = 0, feverBucketDir = 1;
-let countdownTimer = 0, countdownNum = 3;
-let toastText = '', toastTimer = 0;
-let achPage = 0;
-let gameTime = 0, timeLimit = 0;
-let endlessBoardsCleared = 0;
-let zenPegsHit = 0;
-let powerActive = '', powerTimer = 0;
-let activePowerName = '', activePowerDesc = '';
-let rng = Math.random;
-
-// Theme
-let themeIdx = save.theme;
-let theme = THEMES[themeIdx];
-
-// ─── 3D Scene Setup ─────────────────────────────────────────────────
-const scene = world.scene;
-scene.fog = new FogExp2(new Color(theme.fog).getHex(), 0.06);
-scene.background = new Color(theme.bg);
-
-// Lights
-const ambient = new AmbientLight(0x222244, 0.6);
-const dir = new DirectionalLight(0xffffff, 0.5);
-dir.position.set(2, 5, 3);
-const accentL1 = new PointLight(new Color(theme.accent).getHex(), 1.5, 15);
-accentL1.position.set(-3, 2, -2);
-const accentL2 = new PointLight(new Color(theme.glow).getHex(), 1.0, 12);
-accentL2.position.set(3, -2, -2);
-scene.add(ambient, dir, accentL1, accentL2);
-
-// Holodeck grid floor
-function createGrid(y: number, rot: number) {
-  const g = new Group();
-  for (let i = -10; i <= 10; i++) {
-    const mat = new MeshStandardMaterial({ color: new Color(theme.grid).getHex(), emissive: new Color(theme.grid).getHex(), emissiveIntensity: 0.3, transparent: true, opacity: 0.3 });
-    const bar1 = new Mesh(new BoxGeometry(0.01, 0.01, 20), mat);
-    bar1.position.set(i, 0, 0);
-    const bar2 = new Mesh(new BoxGeometry(20, 0.01, 0.01), mat.clone());
-    bar2.position.set(0, 0, i);
-    g.add(bar1, bar2);
-  }
-  g.position.y = y; g.rotation.x = rot;
-  return g;
-}
-const gridFloor = createGrid(-5, 0);
-const gridCeil = createGrid(8, Math.PI);
-scene.add(gridFloor, gridCeil);
-
-// Floating decorations
-const decorations: Mesh[] = [];
-const decoGeos = [
-  new TorusGeometry(0.3, 0.08, 8, 16),
-  new BoxGeometry(0.4, 0.4, 0.4),
-  new SphereGeometry(0.25, 8, 8),
-  new CylinderGeometry(0, 0.3, 0.5, 6),
-];
-for (let i = 0; i < 14; i++) {
-  const geo = decoGeos[i % 4];
-  const mat = new MeshStandardMaterial({
-    color: new Color(theme.accent).getHex(), emissive: new Color(theme.accent).getHex(),
-    emissiveIntensity: 0.3, wireframe: true, transparent: true, opacity: 0.4,
-  });
-  const m = new Mesh(geo, mat);
-  m.position.set((Math.random() - 0.5) * 16, (Math.random() - 0.5) * 10, -3 - Math.random() * 5);
-  (m as any)._baseY = m.position.y;
-  (m as any)._rotSpeed = 0.3 + Math.random() * 0.5;
-  (m as any)._bobSpeed = 0.5 + Math.random() * 0.5;
-  scene.add(m);
-  decorations.push(m);
-}
-
-// Ambient particles
-const ambientParts: Mesh[] = [];
-for (let i = 0; i < 40; i++) {
-  const m = new Mesh(
-    new SphereGeometry(0.02, 4, 4),
-    new MeshStandardMaterial({ color: new Color(theme.accent).getHex(), emissive: new Color(theme.accent).getHex(), emissiveIntensity: 0.8, transparent: true, opacity: 0.5 })
-  );
-  m.position.set((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 10, -2 - Math.random() * 6);
-  (m as any)._drift = new Vector3((Math.random() - 0.5) * 0.1, (Math.random() - 0.5) * 0.05, 0);
-  (m as any)._phase = Math.random() * Math.PI * 2;
-  scene.add(m);
-  ambientParts.push(m);
-}
-
-// ─── Board Walls ────────────────────────────────────────────────────
-const wallMat = new MeshStandardMaterial({ color: new Color(theme.wall).getHex(), emissive: new Color(theme.wall).getHex(), emissiveIntensity: 0.5, transparent: true, opacity: 0.6 });
-const wallL = new Mesh(new BoxGeometry(0.05, BOARD_H + 1, 0.1), wallMat.clone());
-wallL.position.set(WALL_L - 0.025, 0, 0);
-const wallR = new Mesh(new BoxGeometry(0.05, BOARD_H + 1, 0.1), wallMat.clone());
-wallR.position.set(WALL_R + 0.025, 0, 0);
-const wallTop = new Mesh(new BoxGeometry(BOARD_W + 0.1, 0.05, 0.1), wallMat.clone());
-wallTop.position.set(0, CEIL_Y + 0.025, 0);
-scene.add(wallL, wallR, wallTop);
-
-// ─── Launcher ───────────────────────────────────────────────────────
-const launcherGroup = new Group();
-const launcherBase = new Mesh(
-  new CylinderGeometry(0.15, 0.2, 0.1, 12),
-  new MeshStandardMaterial({ color: new Color(theme.accent).getHex(), emissive: new Color(theme.accent).getHex(), emissiveIntensity: 0.6 })
-);
-const launcherBarrel = new Mesh(
-  new CylinderGeometry(0.04, 0.06, 0.5, 8),
-  new MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.3 })
-);
-launcherBarrel.position.y = -0.3;
-const launcherTip = new Mesh(
-  new SphereGeometry(0.05, 8, 8),
-  new MeshStandardMaterial({ color: new Color(theme.ball).getHex(), emissive: new Color(theme.ball).getHex(), emissiveIntensity: 0.8, transparent: true, opacity: 0.7 })
-);
-launcherTip.position.y = -0.55;
-launcherGroup.add(launcherBase, launcherBarrel, launcherTip);
-launcherGroup.position.set(0, CEIL_Y + 0.15, 0);
-scene.add(launcherGroup);
-
-// ─── Aim Guide ──────────────────────────────────────────────────────
-const aimDots: Mesh[] = [];
-for (let i = 0; i < 30; i++) {
-  const m = new Mesh(
-    new SphereGeometry(0.015, 4, 4),
-    new MeshStandardMaterial({ color: new Color(theme.accent).getHex(), emissive: new Color(theme.accent).getHex(), emissiveIntensity: 0.8, transparent: true, opacity: 0.6 - i * 0.015, blending: AdditiveBlending })
-  );
-  m.visible = false;
-  scene.add(m);
-  aimDots.push(m);
-}
-
-// ─── Fever Bucket ───────────────────────────────────────────────────
-const bucketGroup = new Group();
-const bucketBody = new Mesh(
-  new BoxGeometry(0.8, 0.15, 0.15),
-  new MeshStandardMaterial({ color: 0xffaa00, emissive: 0xffaa00, emissiveIntensity: 0.6, transparent: true, opacity: 0.7 })
-);
-const bucketGlow = new Mesh(
-  new BoxGeometry(0.85, 0.2, 0.2),
-  new MeshStandardMaterial({ color: 0xffaa00, emissive: 0xffaa00, emissiveIntensity: 0.4, transparent: true, opacity: 0.3, blending: AdditiveBlending })
-);
-bucketGroup.add(bucketBody, bucketGlow);
-bucketGroup.position.set(0, FLOOR_Y - 0.1, 0);
-scene.add(bucketGroup);
-
-// ─── Particle Pool ──────────────────────────────────────────────────
-for (let i = 0; i < 150; i++) {
-  const m = new Mesh(
-    new SphereGeometry(0.025, 4, 4),
-    new MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.8, transparent: true, opacity: 1 })
-  );
-  m.visible = false;
-  scene.add(m);
-  particles.push({ mesh: m, vx: 0, vy: 0, life: 0, maxLife: 0, active: false });
-}
-
-function spawnParticles(x: number, y: number, color: string, count: number) {
-  const c = new Color(color);
-  for (let i = 0; i < count; i++) {
-    const p = particles.find(pp => !pp.active);
-    if (!p) break;
-    p.active = true;
-    p.mesh.visible = true;
-    p.mesh.position.set(x, y, 0);
-    (p.mesh.material as MeshStandardMaterial).color.copy(c);
-    (p.mesh.material as MeshStandardMaterial).emissive.copy(c);
-    p.vx = (Math.random() - 0.5) * 3;
-    p.vy = Math.random() * 2 + 1;
-    p.life = 0.6 + Math.random() * 0.4;
-    p.maxLife = p.life;
-  }
-}
-
-// ─── Ball Trail (mesh-based) ─────────────────────────────────────────
-const trailDots: Mesh[] = [];
-for (let i = 0; i < 30; i++) {
-  const m = new Mesh(
-    new SphereGeometry(0.012, 4, 4),
-    new MeshStandardMaterial({ color: new Color(theme.ball).getHex(), emissive: new Color(theme.ball).getHex(), emissiveIntensity: 0.8, transparent: true, opacity: 0.5 - i * 0.015, blending: AdditiveBlending })
-  );
-  m.visible = false;
-  scene.add(m);
-  trailDots.push(m);
-}
-
-// ─── Peg Management ─────────────────────────────────────────────────
-function clearPegs() {
-  pegs.forEach(p => { scene.remove(p.mesh); scene.remove(p.glow); });
-  pegs = [];
-}
-
-function createPegMeshes(pegData: { x: number; y: number; type: 'orange' | 'blue' | 'green' | 'purple' }[]) {
-  clearPegs();
-  totalOrange = 0; orangeCleared = 0;
-  pegData.forEach(pd => {
-    const colors: Record<string, string> = { orange: theme.orange, blue: theme.blue, green: theme.green, purple: theme.purple };
-    const col = colors[pd.type] || theme.blue;
-    const mesh = new Mesh(
-      new SphereGeometry(PEG_R, 12, 12),
-      new MeshStandardMaterial({ color: new Color(col).getHex(), emissive: new Color(col).getHex(), emissiveIntensity: 0.5 })
-    );
-    mesh.position.set(pd.x, pd.y, 0);
-    const glow = new Mesh(
-      new SphereGeometry(PEG_R * 1.6, 8, 8),
-      new MeshStandardMaterial({ color: new Color(col).getHex(), emissive: new Color(col).getHex(), emissiveIntensity: 0.3, transparent: true, opacity: 0.25, blending: AdditiveBlending })
-    );
-    glow.position.set(pd.x, pd.y, 0);
-    scene.add(mesh, glow);
-    pegs.push({ mesh, glow, type: pd.type, x: pd.x, y: pd.y, radius: PEG_R, hit: false, fadeTimer: 0 });
-    if (pd.type === 'orange') totalOrange++;
-  });
-}
-
-// ─── Ball Management ────────────────────────────────────────────────
-function createBall(x: number, y: number, vx: number, vy: number) {
-  const skinCol = new Color(SKINS[save.skin].color);
-  const mesh = new Mesh(
-    new SphereGeometry(BALL_R, 12, 12),
-    new MeshStandardMaterial({ color: skinCol.getHex(), emissive: new Color(SKINS[save.skin].emissive).getHex(), emissiveIntensity: 0.6 })
-  );
-  mesh.position.set(x, y, 0);
-  const glow = new Mesh(
-    new SphereGeometry(BALL_R * 2, 8, 8),
-    new MeshStandardMaterial({ color: skinCol.getHex(), emissive: skinCol.getHex(), emissiveIntensity: 0.3, transparent: true, opacity: 0.3, blending: AdditiveBlending })
-  );
-  glow.position.set(x, y, 0);
-  scene.add(mesh, glow);
-  balls.push({ mesh, glow, trail: [], vx, vy, x, y, radius: BALL_R, active: true });
-}
-
-function removeBall(b: Ball) {
-  b.active = false;
-  scene.remove(b.mesh);
-  scene.remove(b.glow);
-}
-
-function clearBalls() {
-  balls.forEach(b => { scene.remove(b.mesh); scene.remove(b.glow); });
-  balls = [];
-}
-
-// ─── Shoot Ball ─────────────────────────────────────────────────────
-function shootBall() {
-  if (shooting || ballsLeft <= 0) return;
-  audio.init();
-  audio.startDrone();
-  shooting = true;
-  pegsHitThisShot = 0;
+// ─── Game Manager ───────────────────────────────────────────────────
+class GameManager {
+  world!: World;
+  scene!: Object3D & { fog?: FogExp2; background?: Color };
+  audio = new AudioEngine();
+  save: SaveData;
+  state: GameState = 'title';
+  mode: GameMode = 'campaign';
+  difficulty: Difficulty = 'normal';
+  score = 0;
   combo = 0;
-  const speed = 5;
-  const vx = Math.sin(aimAngle) * speed;
-  const vy = -Math.cos(aimAngle) * speed;
-  createBall(Math.sin(aimAngle) * 0.5, CEIL_Y - 0.1, vx, vy);
-  if (currentMode !== 'zen') ballsLeft--;
-  save.stats.ballsUsed++;
-  audio.launch();
-}
-
-// ─── Game Flow ──────────────────────────────────────────────────────
-function startGame(mode: string, diff: number) {
-  currentMode = mode;
-  difficulty = diff;
-  score = 0; combo = 0; totalPegsHit = 0; bestComboThisGame = 1;
-  endlessBoardsCleared = 0; zenPegsHit = 0;
-  powerActive = ''; powerTimer = 0;
-
-  if (mode === 'zen') { ballsLeft = 999; timeLimit = 0; }
-  else if (mode === 'timed') { ballsLeft = 999; timeLimit = 90 - diff * 15; gameTime = 0; }
-  else if (mode === 'precision') { ballsLeft = 5; timeLimit = 0; }
-  else if (mode === 'fever') { ballsLeft = ballsPerGame[diff]; timeLimit = 0; }
-  else if (mode === 'endless') { ballsLeft = ballsPerGame[diff] + 5; timeLimit = 0; }
-  else { ballsLeft = ballsPerGame[diff]; timeLimit = 0; }
-
-  if (mode === 'daily') {
-    const today = new Date();
-    const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
-    rng = mulberry32(seed);
-    ballsLeft = 10;
-  } else {
-    rng = Math.random;
-  }
-
-  const lvl = mode === 'campaign' ? levelIdx : Math.floor(rng() * 15);
-  createPegMeshes(generatePegs(lvl, rng));
-
-  if (!save.modesPlayed.includes(mode)) save.modesPlayed.push(mode);
-  if (!save.themesUsed.includes(themeIdx)) save.themesUsed.push(themeIdx);
-  saveSave(save);
-
-  shooting = false;
-  clearBalls();
-  gameState = 'countdown';
+  comboTimer = 0;
+  stage = 1;
+  stageTimer = 0;
+  stageKills = 0;
+  stageKillTarget = 15;
+  gameTime = 0;
+  countdownVal = 3;
   countdownTimer = 0;
-  countdownNum = 3;
-}
+  shotsHit = 0;
 
-function endGame(cleared: boolean) {
-  shooting = false;
-  save.stats.games++;
-  save.stats.totalScore += score;
-  if (score > save.stats.bestScore) save.stats.bestScore = score;
-  save.stats.totalPegs += totalPegsHit;
-  if (bestComboThisGame > save.stats.bestCombo) save.stats.bestCombo = bestComboThisGame;
+  // entities
+  player: PlayerState = this.defaultPlayer();
+  enemies: Enemy[] = [];
+  bullets: Bullet[] = [];
+  powerUps: PowerUp[] = [];
+  particles: Particle[] = [];
+  boss: BossState = { active: false, phase: 0, hp: 0, maxHp: 0, timer: 0, patternTimer: 0, enemy: null };
+  spawnTimer = 0;
+  scrollOffset = 0;
 
-  if (cleared) {
-    save.stats.levelsCleared++;
-    if (orangeCleared === totalOrange && totalPegsHit === pegs.length) save.stats.perfectClears++;
-    if (currentMode === 'campaign' && levelIdx >= save.campaignProgress) {
-      save.campaignProgress = levelIdx + 1;
-    }
-    audio.levelClear();
-  } else {
-    audio.gameOver();
+  // scene objects
+  gameRoot!: Group;
+  gridLines: Mesh[] = [];
+  starField: Mesh[] = [];
+  starLayers: { meshes: Mesh[]; speed: number; }[] = [];
+  debris: Debris[] = [];
+  engineTrail: TrailParticle[] = [];
+
+  // screen shake
+  shakeIntensity = 0;
+  shakeDecay = 0.92;
+  shakeOffsetX = 0;
+  shakeOffsetY = 0;
+
+  // wave tracking
+  waveNumber = 0;
+  waveAnnounceTimer = 0;
+
+  // stage transition
+  stageTransitionTimer = 0;
+
+  // daily seed
+  dailySeed = 0;
+
+  // fever multiplier
+  feverMult = 1;
+
+  // panel entities
+  panelEntities: Map<string, Entity> = new Map();
+
+  // toast queue
+  toastQueue: string[] = [];
+  toastTimer = 0;
+
+  constructor() {
+    this.save = loadSave();
   }
 
-  // XP
-  const xpGain = Math.floor(score / 10) + totalPegsHit * 2 + (cleared ? 50 : 0);
-  save.xp += xpGain;
-  while (save.xp >= 100 + save.level * 50) {
-    save.xp -= (100 + save.level * 50);
-    save.level++;
-  }
-
-  // Leaderboard
-  save.leaderboard.push({ score, mode: currentMode, date: new Date().toLocaleDateString() });
-  save.leaderboard.sort((a, b) => b.score - a.score);
-  if (save.leaderboard.length > 20) save.leaderboard.length = 20;
-
-  // Skin unlocks
-  if (save.stats.totalPegs >= 50) save.skinsUnlocked[1] = true;
-  if (save.stats.bestScore >= 5000) save.skinsUnlocked[2] = true;
-  if (save.stats.games >= 10) save.skinsUnlocked[3] = true;
-  if (save.stats.bestCombo >= 5) save.skinsUnlocked[4] = true;
-  if (save.stats.levelsCleared >= 1) save.skinsUnlocked[5] = true;
-  // accuracy-based and all-modes unlocks checked separately
-
-  // Achievement checks
-  checkAch('first_hit', save.stats.totalPegs >= 1);
-  checkAch('ten_pegs', save.stats.totalPegs >= 10);
-  checkAch('fifty_pegs', save.stats.totalPegs >= 50);
-  checkAch('hundred_pegs', save.stats.totalPegs >= 100);
-  checkAch('five_hundred_pegs', save.stats.totalPegs >= 500);
-  checkAch('score_1k', score >= 1000);
-  checkAch('score_5k', score >= 5000);
-  checkAch('score_10k', score >= 10000);
-  checkAch('score_25k', score >= 25000);
-  checkAch('combo_3', bestComboThisGame >= 3);
-  checkAch('combo_5', bestComboThisGame >= 5);
-  checkAch('combo_8', bestComboThisGame >= 8);
-  checkAch('combo_10', bestComboThisGame >= 10);
-  checkAch('clear_level', cleared);
-  checkAch('perfect_clear', cleared && totalPegsHit === pegs.length);
-  checkAch('games_10', save.stats.games >= 10);
-  checkAch('games_50', save.stats.games >= 50);
-  checkAch('all_modes', save.modesPlayed.length >= 8);
-  checkAch('theme_all', save.themesUsed.length >= 5);
-  checkAch('level_10', save.level >= 10);
-  checkAch('level_25', save.level >= 25);
-  checkAch('level_50', save.level >= 50);
-  checkAch('precision_win', currentMode === 'precision' && cleared);
-  checkAch('endless_5', currentMode === 'endless' && endlessBoardsCleared >= 5);
-  checkAch('campaign_5', save.campaignProgress >= 5);
-  checkAch('campaign_10', save.campaignProgress >= 10);
-  checkAch('campaign_20', save.campaignProgress >= 20);
-
-  if (currentMode === 'daily') {
-    const today = new Date().toISOString().split('T')[0];
-    if (save.lastDaily !== today) {
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-      save.dailyStreak = save.lastDaily === yesterday ? save.dailyStreak + 1 : 1;
-      save.lastDaily = today;
-    }
-    checkAch('daily_done', true);
-    checkAch('daily_3', save.dailyStreak >= 3);
-  }
-
-  if (save.modesPlayed.length >= 8) save.skinsUnlocked[7] = true;
-  if (save.skinsUnlocked.some((s, i) => s && i > 0)) checkAch('skin_unlock', true);
-
-  saveSave(save);
-  clearBalls();
-  gameState = 'gameover';
-}
-
-function checkAch(id: string, condition: boolean) {
-  if (!condition || save.achievements.includes(id)) return;
-  save.achievements.push(id);
-  const ach = ACHIEVEMENTS.find(a => a.id === id);
-  if (ach) { showToast('Achievement: ' + ach.name); audio.achievement(); }
-}
-
-function showToast(text: string) { toastText = text; toastTimer = 2.5; }
-
-// ─── UI System ──────────────────────────────────────────────────────
-class PegUISystem extends createSystem({
-  titleQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/title.json')] },
-  modesQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/modes.json')] },
-  diffQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/difficulty.json')] },
-  hudQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/hud.json')] },
-  pauseQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/pause.json')] },
-  goQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/gameover.json')] },
-  lbQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/leaderboard.json')] },
-  achQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/achievements.json')] },
-  setQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/settings.json')] },
-  statQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/stats.json')] },
-  skinQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/skins.json')] },
-  helpQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/help.json')] },
-  toastQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/toast.json')] },
-  cdQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/countdown.json')] },
-  powQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/powerup.json')] },
-  aimQ: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/aimguide.json')] },
-}) {
-  private docs = new Map<string, { entity: Entity; doc: UIKitDocument }>();
-  private getDoc(name: string) { return this.docs.get(name); }
-  private setText(panel: string, id: string, text: string) {
-    const d = this.getDoc(panel);
-    if (!d) return;
-    (d.doc.getElementById(id) as UIKit.Text | undefined)?.setProperties({ text });
-  }
-  private wireBtn(panel: string, id: string, fn: () => void) {
-    const d = this.getDoc(panel);
-    if (!d) return;
-    const el = d.doc.getElementById(id) as any;
-    el?.addEventListener('click', fn);
-  }
-
-  init() {
-    const bindPanel = (name: string, query: any) => {
-      query.subscribe('qualify', (entity: Entity) => {
-        const doc = PanelDocument.data.document[entity.index] as UIKitDocument;
-        if (!doc) return;
-        this.docs.set(name, { entity, doc });
-        this.setupPanel(name, entity, doc);
-      });
+  defaultPlayer(): PlayerState {
+    return {
+      x: -FIELD_W / 2 + 1.5, y: 0,
+      speed: PLAYER_SPEED,
+      fireRate: FIRE_RATE, fireTimer: 0,
+      weapon: 'normal', weaponTimer: 0,
+      shielded: false, shieldTimer: 0,
+      speedBoost: false, speedTimer: 0,
+      lives: 3, invincible: false, invincTimer: 0,
+      mesh: null, group: null, shieldMesh: null,
     };
-    bindPanel('title', this.queries.titleQ);
-    bindPanel('modes', this.queries.modesQ);
-    bindPanel('diff', this.queries.diffQ);
-    bindPanel('hud', this.queries.hudQ);
-    bindPanel('pause', this.queries.pauseQ);
-    bindPanel('go', this.queries.goQ);
-    bindPanel('lb', this.queries.lbQ);
-    bindPanel('ach', this.queries.achQ);
-    bindPanel('set', this.queries.setQ);
-    bindPanel('stat', this.queries.statQ);
-    bindPanel('skin', this.queries.skinQ);
-    bindPanel('help', this.queries.helpQ);
-    bindPanel('toast', this.queries.toastQ);
-    bindPanel('cd', this.queries.cdQ);
-    bindPanel('pow', this.queries.powQ);
-    bindPanel('aim', this.queries.aimQ);
   }
 
-  setupPanel(name: string, _entity: Entity, _doc: UIKitDocument) {
-    const clk = () => { audio.init(); audio.click(); };
-    if (name === 'title') {
-      this.wireBtn('title', 'btn-play', () => { clk(); gameState = 'modes'; });
-      this.wireBtn('title', 'btn-scores', () => { clk(); gameState = 'leaderboard'; });
-      this.wireBtn('title', 'btn-achievements', () => { clk(); achPage = 0; gameState = 'achievements'; });
-      this.wireBtn('title', 'btn-stats', () => { clk(); gameState = 'stats'; });
-      this.wireBtn('title', 'btn-skins', () => { clk(); gameState = 'skins'; });
-      this.wireBtn('title', 'btn-settings', () => { clk(); gameState = 'settings'; });
-      this.wireBtn('title', 'btn-help', () => { clk(); gameState = 'help'; });
+  getTheme() { return THEMES[this.save.selectedTheme] || THEMES[0]; }
+  getSkin() { return SKINS[this.save.selectedSkin] || SKINS[0]; }
+
+  // ─── Scene Setup ────────────────────────────────────────────────
+  setupScene() {
+    const theme = this.getTheme();
+    this.scene = this.world.scene as unknown as Object3D & { fog?: FogExp2; background?: Color };
+    this.scene.fog = new FogExp2(new Color(theme.fog).getHex(), 0.04);
+    this.scene.background = new Color(theme.bg);
+
+    this.gameRoot = new Group();
+    this.gameRoot.position.set(0, 1.0, -3);
+    this.gameRoot.scale.set(0.2, 0.2, 0.2);
+    this.scene.add(this.gameRoot);
+
+    // ambient + directional light
+    const ambient = new AmbientLight(new Color(theme.accent).getHex(), 0.3);
+    this.scene.add(ambient);
+    const dirLight = new DirectionalLight(0xffffff, 0.5);
+    dirLight.position.set(5, 10, 5);
+    this.scene.add(dirLight);
+
+    // grid floor
+    this.createGrid(theme);
+    // star field
+    this.createStarField();
+    // boundary walls
+    this.createBoundaries(theme);
+  }
+
+  createGrid(theme: { grid: string; accent: string }) {
+    const gridGeo = new BoxGeometry(FIELD_W + 2, 0.001, FIELD_H + 2);
+    const gridMat = new MeshBasicMaterial({ color: new Color(theme.grid).getHex(), transparent: true, opacity: 0.3 });
+    const gridFloor = new Mesh(gridGeo, gridMat);
+    gridFloor.position.set(0, -FIELD_H / 2 - 0.5, 0);
+    this.gameRoot.add(gridFloor);
+
+    // grid lines
+    for (let i = -6; i <= 6; i++) {
+      const lineGeo = new BoxGeometry(0.01, 0.001, FIELD_H + 2);
+      const lineMat = new MeshBasicMaterial({ color: new Color(theme.accent).getHex(), transparent: true, opacity: 0.15 });
+      const line = new Mesh(lineGeo, lineMat);
+      line.position.set(i, -FIELD_H / 2 - 0.49, 0);
+      this.gameRoot.add(line);
+      this.gridLines.push(line);
     }
-    if (name === 'modes') {
-      MODES.forEach(m => {
-        this.wireBtn('modes', 'btn-' + m, () => { clk(); currentMode = m; gameState = 'difficulty'; });
-      });
-      this.wireBtn('modes', 'btn-back', () => { clk(); gameState = 'title'; });
+    for (let i = -4; i <= 4; i++) {
+      const lineGeo = new BoxGeometry(FIELD_W + 2, 0.001, 0.01);
+      const lineMat = new MeshBasicMaterial({ color: new Color(theme.accent).getHex(), transparent: true, opacity: 0.15 });
+      const line = new Mesh(lineGeo, lineMat);
+      line.position.set(0, -FIELD_H / 2 - 0.49, i);
+      this.gameRoot.add(line);
     }
-    if (name === 'diff') {
-      this.wireBtn('diff', 'btn-easy', () => { clk(); startGame(currentMode, 0); });
-      this.wireBtn('diff', 'btn-medium', () => { clk(); startGame(currentMode, 1); });
-      this.wireBtn('diff', 'btn-hard', () => { clk(); startGame(currentMode, 2); });
-      this.wireBtn('diff', 'btn-back', () => { clk(); gameState = 'modes'; });
+  }
+
+  createStarField() {
+    // 3-layer parallax: far dim stars, mid stars, near bright stars
+    const layers = [
+      { count: 50, minSize: 0.01, maxSize: 0.02, minOpacity: 0.15, maxOpacity: 0.3, speed: 0.1, zMin: -25, zMax: -35 },
+      { count: 40, minSize: 0.02, maxSize: 0.04, minOpacity: 0.3, maxOpacity: 0.5, speed: 0.25, zMin: -15, zMax: -24 },
+      { count: 25, minSize: 0.03, maxSize: 0.06, minOpacity: 0.5, maxOpacity: 0.8, speed: 0.5, zMin: -8, zMax: -14 },
+    ];
+
+    for (const layer of layers) {
+      const meshes: Mesh[] = [];
+      for (let i = 0; i < layer.count; i++) {
+        const size = layer.minSize + Math.random() * (layer.maxSize - layer.minSize);
+        const geo = new SphereGeometry(size, 4, 4);
+        const opacity = layer.minOpacity + Math.random() * (layer.maxOpacity - layer.minOpacity);
+        // Occasional colored star
+        const isColored = Math.random() < 0.15;
+        const color = isColored
+          ? [0x88ccff, 0xffaa66, 0xaaffaa, 0xffaaff][Math.floor(Math.random() * 4)]
+          : 0xffffff;
+        const mat = new MeshBasicMaterial({ color, transparent: true, opacity });
+        const star = new Mesh(geo, mat);
+        star.position.set(
+          (Math.random() - 0.5) * 40,
+          (Math.random() - 0.5) * 20 + 3,
+          layer.zMin - Math.random() * (layer.zMax - layer.zMin),
+        );
+        this.scene.add(star);
+        meshes.push(star);
+        this.starField.push(star);
+      }
+      this.starLayers.push({ meshes, speed: layer.speed });
     }
-    if (name === 'pause') {
-      this.wireBtn('pause', 'btn-resume', () => { clk(); gameState = 'playing'; });
-      this.wireBtn('pause', 'btn-quit', () => { clk(); clearPegs(); clearBalls(); gameState = 'title'; });
+  }
+
+  // ─── Background Debris ─────────────────────────────────────────
+  spawnDebris() {
+    const theme = this.getTheme();
+    const group = new Group();
+    const shapes = ['box', 'octahedron', 'icosahedron', 'torus'] as const;
+    const shape = shapes[Math.floor(Math.random() * shapes.length)];
+    let mesh: Mesh;
+    const size = 0.1 + Math.random() * 0.25;
+    const mat = new MeshStandardMaterial({
+      color: new Color(theme.wall).getHex(),
+      emissive: new Color(theme.grid).getHex(),
+      emissiveIntensity: 0.2,
+      transparent: true,
+      opacity: 0.25 + Math.random() * 0.2,
+      metalness: 0.6,
+      roughness: 0.4,
+    });
+    switch (shape) {
+      case 'box': mesh = new Mesh(new BoxGeometry(size, size, size), mat); break;
+      case 'octahedron': mesh = new Mesh(new OctahedronGeometry(size * 0.7), mat); break;
+      case 'icosahedron': mesh = new Mesh(new IcosahedronGeometry(size * 0.6, 0), mat); break;
+      case 'torus': mesh = new Mesh(new TorusGeometry(size * 0.5, size * 0.15, 6, 8), mat); break;
     }
-    if (name === 'go') {
-      this.wireBtn('go', 'btn-next', () => {
-        clk();
-        if (currentMode === 'campaign') { levelIdx++; startGame('campaign', difficulty); }
-        else if (currentMode === 'endless') { startGame('endless', difficulty); }
-        else { gameState = 'title'; }
-      });
-      this.wireBtn('go', 'btn-retry', () => { clk(); startGame(currentMode, difficulty); });
-      this.wireBtn('go', 'btn-menu', () => { clk(); clearPegs(); gameState = 'title'; });
+    group.add(mesh);
+    const x = FIELD_W / 2 + 3 + Math.random() * 2;
+    const y = (Math.random() - 0.5) * (FIELD_H + 4);
+    group.position.set(x, y, -1 - Math.random() * 3);
+    this.gameRoot.add(group);
+    const debris: Debris = {
+      mesh, group, x, y,
+      vx: -(SCROLL_SPEED * 0.3 + Math.random() * 0.5),
+      rotSpeed: (Math.random() - 0.5) * 4,
+      active: true,
+    };
+    this.debris.push(debris);
+  }
+
+  createBoundaries(theme: { wall: string }) {
+    const wallMat = new MeshStandardMaterial({
+      color: new Color(theme.wall).getHex(),
+      emissive: new Color(theme.wall).getHex(),
+      emissiveIntensity: 0.3,
+      transparent: true, opacity: 0.4,
+    });
+    // top/bottom walls
+    const topWall = new Mesh(new BoxGeometry(FIELD_W + 2, 0.08, 0.08), wallMat);
+    topWall.position.set(0, FIELD_H / 2, 0);
+    this.gameRoot.add(topWall);
+    const botWall = new Mesh(new BoxGeometry(FIELD_W + 2, 0.08, 0.08), wallMat.clone());
+    botWall.position.set(0, -FIELD_H / 2, 0);
+    this.gameRoot.add(botWall);
+    // left wall
+    const leftWall = new Mesh(new BoxGeometry(0.08, FIELD_H + 0.08, 0.08), wallMat.clone());
+    leftWall.position.set(-FIELD_W / 2 - 0.04, 0, 0);
+    this.gameRoot.add(leftWall);
+  }
+
+  // ─── Player Ship ───────────────────────────────────────────────
+  createPlayerShip() {
+    const skin = this.getSkin();
+    const group = new Group();
+    // body - arrow shape using box
+    const bodyGeo = new BoxGeometry(0.5, 0.12, 0.25);
+    const bodyMat = new MeshStandardMaterial({
+      color: new Color(skin.color).getHex(),
+      emissive: new Color(skin.emissive).getHex(),
+      emissiveIntensity: 0.8,
+      metalness: 0.8, roughness: 0.2,
+    });
+    const body = new Mesh(bodyGeo, bodyMat);
+    group.add(body);
+
+    // nose cone (cylinder with 0 top radius)
+    const noseGeo = new CylinderGeometry(0, 0.12, 0.3, 4);
+    const noseMat = bodyMat.clone();
+    const nose = new Mesh(noseGeo, noseMat);
+    nose.rotation.z = -Math.PI / 2;
+    nose.position.x = 0.35;
+    group.add(nose);
+
+    // wings
+    const wingGeo = new BoxGeometry(0.25, 0.03, 0.6);
+    const wingMat = bodyMat.clone();
+    wingMat.emissiveIntensity = 0.5;
+    const wings = new Mesh(wingGeo, wingMat);
+    wings.position.x = -0.05;
+    group.add(wings);
+
+    // engine glow
+    const engineGeo = new SphereGeometry(0.08, 8, 8);
+    const engineMat = new MeshBasicMaterial({
+      color: new Color(skin.color).getHex(),
+      transparent: true, opacity: 0.7,
+    });
+    const engine = new Mesh(engineGeo, engineMat);
+    engine.position.x = -0.35;
+    group.add(engine);
+
+    // shield mesh (hidden initially)
+    const shieldGeo = new SphereGeometry(0.45, 12, 12);
+    const shieldMat = new MeshBasicMaterial({
+      color: 0x44aaff, transparent: true, opacity: 0.0,
+      blending: AdditiveBlending,
+    });
+    const shieldMesh = new Mesh(shieldGeo, shieldMat);
+    group.add(shieldMesh);
+
+    group.position.set(this.player.x, this.player.y, 0);
+    this.gameRoot.add(group);
+    this.player.mesh = body;
+    this.player.group = group;
+    this.player.shieldMesh = shieldMesh;
+  }
+
+  removePlayerShip() {
+    if (this.player.group) {
+      this.gameRoot.remove(this.player.group);
+      this.player.group = null;
+      this.player.mesh = null;
+      this.player.shieldMesh = null;
     }
-    if (name === 'lb') { this.wireBtn('lb', 'btn-back', () => { clk(); gameState = 'title'; }); }
-    if (name === 'ach') {
-      this.wireBtn('ach', 'btn-prev', () => { clk(); if (achPage > 0) achPage--; });
-      this.wireBtn('ach', 'btn-next', () => { clk(); if ((achPage + 1) * 15 < ACHIEVEMENTS.length) achPage++; });
-      this.wireBtn('ach', 'btn-back', () => { clk(); gameState = 'title'; });
-    }
-    if (name === 'set') {
-      const adj = (key: 'master' | 'sfx' | 'music', delta: number) => {
-        save.volumes[key] = Math.max(0, Math.min(100, save.volumes[key] + delta));
-        audio.setVolumes(save.volumes.master, save.volumes.sfx, save.volumes.music);
-        saveSave(save);
-      };
-      this.wireBtn('set', 'btn-master-up', () => adj('master', 10));
-      this.wireBtn('set', 'btn-master-down', () => adj('master', -10));
-      this.wireBtn('set', 'btn-sfx-up', () => adj('sfx', 10));
-      this.wireBtn('set', 'btn-sfx-down', () => adj('sfx', -10));
-      this.wireBtn('set', 'btn-music-up', () => adj('music', 10));
-      this.wireBtn('set', 'btn-music-down', () => adj('music', -10));
-      this.wireBtn('set', 'btn-theme-prev', () => { clk(); themeIdx = (themeIdx - 1 + THEMES.length) % THEMES.length; theme = THEMES[themeIdx]; save.theme = themeIdx; saveSave(save); });
-      this.wireBtn('set', 'btn-theme-next', () => { clk(); themeIdx = (themeIdx + 1) % THEMES.length; theme = THEMES[themeIdx]; save.theme = themeIdx; saveSave(save); });
-      this.wireBtn('set', 'btn-back', () => { clk(); gameState = 'title'; });
-    }
-    if (name === 'stat') { this.wireBtn('stat', 'btn-back', () => { clk(); gameState = 'title'; }); }
-    if (name === 'skin') {
-      for (let i = 0; i < 8; i++) {
-        this.wireBtn('skin', 'skin' + i, () => {
-          if (save.skinsUnlocked[i]) { save.skin = i; saveSave(save); clk(); }
+  }
+
+  // ─── Enemy Creation ──────────────────────────────────────────────
+  createEnemy(type: EnemyType, x: number, y: number): Enemy {
+    const theme = this.getTheme();
+    const diff = DIFFICULTY_MULT[this.difficulty];
+    const group = new Group();
+    let mesh: Mesh;
+    let hp = 1, points = 100;
+
+    const eMat = new MeshStandardMaterial({
+      color: new Color(theme.enemy).getHex(),
+      emissive: new Color(theme.enemy).getHex(),
+      emissiveIntensity: 0.6,
+      metalness: 0.7, roughness: 0.3,
+    });
+
+    switch (type) {
+      case 'straight': {
+        mesh = new Mesh(new BoxGeometry(0.35, 0.15, 0.2), eMat);
+        hp = 1; points = 100;
+        break;
+      }
+      case 'sine': {
+        mesh = new Mesh(new OctahedronGeometry(0.18), eMat.clone());
+        hp = 1; points = 150;
+        break;
+      }
+      case 'dive': {
+        const diveMat = eMat.clone();
+        diveMat.color = new Color('#ff8800');
+        diveMat.emissive = new Color('#aa4400');
+        mesh = new Mesh(new CylinderGeometry(0, 0.15, 0.35, 5), diveMat);
+        mesh.rotation.z = Math.PI / 2;
+        hp = 1; points = 200;
+        break;
+      }
+      case 'circle': {
+        mesh = new Mesh(new TorusGeometry(0.15, 0.05, 8, 12), eMat.clone());
+        hp = 2; points = 250;
+        break;
+      }
+      case 'formation': {
+        mesh = new Mesh(new BoxGeometry(0.3, 0.12, 0.18), eMat.clone());
+        hp = 1; points = 120;
+        break;
+      }
+      case 'turret': {
+        const tMat = eMat.clone();
+        tMat.color = new Color('#ff4488');
+        tMat.emissive = new Color('#aa2244');
+        mesh = new Mesh(new CylinderGeometry(0.2, 0.2, 0.2, 6), tMat);
+        // barrel
+        const barrel = new Mesh(new BoxGeometry(0.3, 0.06, 0.06), tMat.clone());
+        barrel.position.x = -0.2;
+        group.add(barrel);
+        hp = 3; points = 300;
+        break;
+      }
+      case 'tank': {
+        const tankMat = eMat.clone();
+        tankMat.color = new Color('#ff2222');
+        tankMat.emissive = new Color('#881111');
+        mesh = new Mesh(new BoxGeometry(0.5, 0.25, 0.3), tankMat);
+        hp = 5; points = 500;
+        break;
+      }
+      case 'boss': {
+        const bossMat = new MeshStandardMaterial({
+          color: 0xff0044, emissive: 0xaa0022, emissiveIntensity: 0.8,
+          metalness: 0.9, roughness: 0.1,
         });
+        mesh = new Mesh(new BoxGeometry(1.2, 0.6, 0.5), bossMat);
+        // wings
+        const bWing = new Mesh(new BoxGeometry(0.4, 0.05, 0.8), bossMat.clone());
+        group.add(bWing);
+        // top turret
+        const turret = new Mesh(new CylinderGeometry(0.15, 0.15, 0.15, 6), bossMat.clone());
+        turret.position.set(0, 0.35, 0);
+        group.add(turret);
+        hp = 50 + this.stage * 20; points = 5000;
+        break;
       }
-      this.wireBtn('skin', 'btn-back', () => { clk(); gameState = 'title'; });
+      default: {
+        mesh = new Mesh(new BoxGeometry(0.3, 0.15, 0.2), eMat);
+        hp = 1; points = 100;
+      }
     }
-    if (name === 'help') { this.wireBtn('help', 'btn-back', () => { clk(); gameState = 'title'; }); }
+
+    hp = Math.ceil(hp * diff.hp);
+    group.add(mesh);
+    group.position.set(x, y, 0);
+    this.gameRoot.add(group);
+
+    const enemy: Enemy = {
+      mesh, group, type, x, y,
+      vx: -(SCROLL_SPEED + 1) * diff.speed,
+      vy: 0,
+      hp, maxHp: hp, points,
+      timer: 0, baseY: y,
+      fireTimer: 2 + Math.random() * 3,
+      active: true,
+    };
+
+    if (type === 'sine') enemy.vy = 0;
+    if (type === 'circle') { enemy.vx = -SCROLL_SPEED * 0.5 * diff.speed; }
+    if (type === 'turret') { enemy.vx = -SCROLL_SPEED * 0.3 * diff.speed; }
+    if (type === 'tank') { enemy.vx = -SCROLL_SPEED * 0.6 * diff.speed; }
+    if (type === 'boss') { enemy.vx = -SCROLL_SPEED * 0.3; }
+
+    this.enemies.push(enemy);
+    return enemy;
   }
 
-  update() {
-    // Visibility per state
-    const vis = new Map<string, GameState[]>([
-      ['title', ['title']], ['modes', ['modes']], ['diff', ['difficulty']], ['hud', ['playing', 'countdown']],
-      ['pause', ['paused']], ['go', ['gameover']], ['lb', ['leaderboard']], ['ach', ['achievements']],
-      ['set', ['settings']], ['stat', ['stats']], ['skin', ['skins']], ['help', ['help']],
-      ['toast', ['playing', 'countdown', 'gameover']], ['cd', ['countdown']],
-      ['pow', ['playing']], ['aim', ['playing']],
-    ]);
-    for (const [name, states] of vis) {
-      const d = this.getDoc(name);
-      if (!d) continue;
-      const show = states.includes(gameState);
-      if (d.entity.object3D) d.entity.object3D.visible = show;
+  // ─── Bullet Creation ───────────────────────────────────────────
+  createBullet(x: number, y: number, vx: number, vy: number, isPlayer: boolean, damage = 1) {
+    const theme = this.getTheme();
+    const color = isPlayer ? new Color(theme.bullet).getHex() : new Color(theme.enemy).getHex();
+    const geo = isPlayer
+      ? new BoxGeometry(0.2, 0.04, 0.04)
+      : new SphereGeometry(0.06, 6, 6);
+    const mat = new MeshBasicMaterial({
+      color, transparent: true, opacity: 0.9,
+      blending: AdditiveBlending,
+    });
+    const mesh = new Mesh(geo, mat);
+    mesh.position.set(x, y, 0);
+    this.gameRoot.add(mesh);
+
+    const bullet: Bullet = { mesh, x, y, vx, vy, damage, isPlayer, active: true };
+    this.bullets.push(bullet);
+    return bullet;
+  }
+
+  // ─── Power-Up Creation ─────────────────────────────────────────
+  spawnPowerUp(x: number, y: number) {
+    const types: PowerUpType[] = ['spread', 'laser', 'missile', 'shield', 'speed'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    const group = new Group();
+
+    const colors: Record<PowerUpType, number> = {
+      spread: 0xff8800, laser: 0x00ff88, missile: 0xff4444,
+      shield: 0x4488ff, speed: 0xffff00,
+    };
+
+    const geo = new OctahedronGeometry(0.15);
+    const mat = new MeshStandardMaterial({
+      color: colors[type], emissive: colors[type],
+      emissiveIntensity: 0.8, metalness: 0.5, roughness: 0.3,
+    });
+    const mesh = new Mesh(geo, mat);
+    group.add(mesh);
+
+    // glow ring
+    const ringGeo = new TorusGeometry(0.22, 0.02, 8, 16);
+    const ringMat = new MeshBasicMaterial({
+      color: colors[type], transparent: true, opacity: 0.5,
+      blending: AdditiveBlending,
+    });
+    const ring = new Mesh(ringGeo, ringMat);
+    group.add(ring);
+
+    group.position.set(x, y, 0);
+    this.gameRoot.add(group);
+
+    const pu: PowerUp = { mesh, group, type, x, y, active: true, timer: 0 };
+    this.powerUps.push(pu);
+  }
+
+  // ─── Particle System ───────────────────────────────────────────
+  spawnParticles(x: number, y: number, color: number, count = 8) {
+    if (!this.save.settings.particles) return;
+    for (let i = 0; i < count; i++) {
+      const geo = new BoxGeometry(0.04, 0.04, 0.04);
+      const mat = new MeshBasicMaterial({
+        color, transparent: true, opacity: 1,
+        blending: AdditiveBlending,
+      });
+      const mesh = new Mesh(geo, mat);
+      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+      const speed = 2 + Math.random() * 4;
+      mesh.position.set(x, y, 0);
+      this.gameRoot.add(mesh);
+
+      const p: Particle = {
+        mesh, x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0.4 + Math.random() * 0.3,
+        maxLife: 0.6,
+        active: true,
+      };
+      this.particles.push(p);
+    }
+  }
+
+  // ─── Screen Shake ──────────────────────────────────────────────
+  triggerShake(intensity: number) {
+    if (!this.save.settings.screenShake) return;
+    this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+  }
+
+  updateShake(dt: number) {
+    if (this.shakeIntensity > 0.01) {
+      this.shakeOffsetX = (Math.random() - 0.5) * this.shakeIntensity * 0.15;
+      this.shakeOffsetY = (Math.random() - 0.5) * this.shakeIntensity * 0.15;
+      this.shakeIntensity *= this.shakeDecay;
+    } else {
+      this.shakeIntensity = 0;
+      this.shakeOffsetX = 0;
+      this.shakeOffsetY = 0;
+    }
+    // Apply to game root
+    if (this.gameRoot) {
+      this.gameRoot.position.x = this.shakeOffsetX;
+    }
+  }
+
+  // ─── Engine Trail ─────────────────────────────────────────────
+  spawnEngineTrail() {
+    if (!this.save.settings.particles || !this.player.group) return;
+    const skin = this.getSkin();
+    const geo = new BoxGeometry(0.03, 0.03, 0.03);
+    const mat = new MeshBasicMaterial({
+      color: new Color(skin.color).getHex(),
+      transparent: true, opacity: 0.6,
+      blending: AdditiveBlending,
+    });
+    const mesh = new Mesh(geo, mat);
+    mesh.position.set(
+      this.player.x - 0.4 + (Math.random() - 0.5) * 0.1,
+      this.player.y + (Math.random() - 0.5) * 0.08,
+      0
+    );
+    this.gameRoot.add(mesh);
+    this.engineTrail.push({ mesh, life: 0.3 + Math.random() * 0.2, maxLife: 0.4, active: true });
+  }
+
+  updateEngineTrail(dt: number) {
+    for (const t of this.engineTrail) {
+      if (!t.active) continue;
+      t.life -= dt;
+      if (t.life <= 0) { t.active = false; t.mesh.visible = false; continue; }
+      // drift left
+      t.mesh.position.x -= SCROLL_SPEED * 0.6 * dt;
+      const alpha = t.life / t.maxLife;
+      (t.mesh.material as MeshBasicMaterial).opacity = alpha * 0.5;
+      const s = alpha * 0.5 + 0.3;
+      t.mesh.scale.set(s, s, s);
+    }
+    // cleanup
+    this.engineTrail = this.engineTrail.filter(t => {
+      if (!t.active) { if (t.mesh.parent) this.gameRoot.remove(t.mesh); return false; }
+      return true;
+    });
+  }
+
+  // ─── Cleanup ────────────────────────────────────────────────────
+  clearGameEntities() {
+    for (const e of this.enemies) { if (e.group.parent) this.gameRoot.remove(e.group); }
+    for (const b of this.bullets) { if (b.mesh.parent) this.gameRoot.remove(b.mesh); }
+    for (const p of this.powerUps) { if (p.group.parent) this.gameRoot.remove(p.group); }
+    for (const p of this.particles) { if (p.mesh.parent) this.gameRoot.remove(p.mesh); }
+    for (const d of this.debris) { if (d.group.parent) this.gameRoot.remove(d.group); }
+    for (const t of this.engineTrail) { if (t.mesh.parent) this.gameRoot.remove(t.mesh); }
+    this.enemies = [];
+    this.bullets = [];
+    this.powerUps = [];
+    this.particles = [];
+    this.debris = [];
+    this.engineTrail = [];
+    this.boss = { active: false, phase: 0, hp: 0, maxHp: 0, timer: 0, patternTimer: 0, enemy: null };
+    this.spawnTimer = 0;
+    this.shakeIntensity = 0;
+    this.shakeOffsetX = 0;
+    this.shakeOffsetY = 0;
+  }
+
+  // ─── Enemy Spawning ─────────────────────────────────────────────
+  spawnWave() {
+    const diff = DIFFICULTY_MULT[this.difficulty];
+    const halfH = FIELD_H / 2 - 0.5;
+    const rightEdge = FIELD_W / 2 + 1;
+
+    // check if boss time
+    if (this.stageKills >= this.stageKillTarget && !this.boss.active) {
+      this.spawnBoss();
+      return;
     }
 
-    // Update HUD
-    if (gameState === 'playing' || gameState === 'countdown') {
-      this.setText('hud', 'score-label', 'Score: ' + score);
-      this.setText('hud', 'balls-label', 'Balls: ' + (currentMode === 'zen' ? '--' : ballsLeft));
-      this.setText('hud', 'orange-label', 'Orange: ' + orangeCleared + '/' + totalOrange);
-      this.setText('hud', 'combo-label', 'Combo: x' + Math.max(1, combo));
-      this.setText('hud', 'level-label', 'Lv ' + save.level);
-      this.setText('hud', 'mode-label', currentMode.charAt(0).toUpperCase() + currentMode.slice(1) + (timeLimit > 0 ? ' ' + Math.max(0, Math.ceil(timeLimit - gameTime)) + 's' : ''));
+    const wave = Math.random();
+    if (wave < 0.25) {
+      // straight line
+      const count = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) {
+        const y = -halfH + (halfH * 2 * i) / (count - 1 || 1);
+        this.createEnemy('straight', rightEdge + i * 0.5, y);
+      }
+    } else if (wave < 0.4) {
+      // sine wave
+      const y = (Math.random() - 0.5) * halfH;
+      this.createEnemy('sine', rightEdge, y);
+    } else if (wave < 0.55) {
+      // divers
+      for (let i = 0; i < 2; i++) {
+        this.createEnemy('dive', rightEdge + i * 1.5, halfH * (Math.random() > 0.5 ? 1 : -1));
+      }
+    } else if (wave < 0.65) {
+      // circle
+      this.createEnemy('circle', rightEdge, (Math.random() - 0.5) * halfH);
+    } else if (wave < 0.8) {
+      // formation - V shape
+      for (let i = 0; i < 5; i++) {
+        const fx = rightEdge + Math.abs(i - 2) * 0.6;
+        const fy = (i - 2) * 0.8;
+        this.createEnemy('formation', fx, fy);
+      }
+    } else if (wave < 0.9) {
+      // turret
+      this.createEnemy('turret', rightEdge, (Math.random() - 0.5) * halfH * 1.5);
+    } else {
+      // tank
+      this.createEnemy('tank', rightEdge, (Math.random() - 0.5) * halfH);
+    }
+  }
+
+  spawnBoss() {
+    this.audio.bossWarning();
+    this.showToast('WARNING: BOSS APPROACHING');
+    const enemy = this.createEnemy('boss', FIELD_W / 2 + 2, 0);
+    this.boss = {
+      active: true, phase: 0,
+      hp: enemy.hp, maxHp: enemy.maxHp,
+      timer: 0, patternTimer: 0,
+      enemy,
+    };
+  }
+
+  // ─── Boss Update ───────────────────────────────────────────────
+  updateBoss(delta: number) {
+    if (!this.boss.active || !this.boss.enemy || !this.boss.enemy.active) return;
+    const b = this.boss;
+    const e = b.enemy;
+    if (!e) return;
+    b.timer += delta;
+    b.patternTimer += delta;
+
+    // move boss to position
+    const targetX = FIELD_W / 2 - 2;
+    if (e.x > targetX) {
+      e.x += (-SCROLL_SPEED * 0.5) * delta;
+    } else {
+      e.vx = 0;
+      // oscillate
+      e.y = Math.sin(b.timer * 0.8) * (FIELD_H / 2 - 1);
     }
 
-    // Countdown
-    if (gameState === 'countdown') {
-      this.setText('cd', 'countdown-text', countdownNum > 0 ? '' + countdownNum : 'SHOOT!');
-    }
-
-    // Toast
-    const toastD = this.getDoc('toast');
-    if (toastD) {
-      if (toastD.entity.object3D) toastD.entity.object3D.visible = toastTimer > 0;
-      if (toastTimer > 0) this.setText('toast', 'toast-text', toastText);
-    }
-
-    // Power-up display
-    if (gameState === 'playing') {
-      const powD = this.getDoc('pow');
-      if (powD) {
-        if (powD.entity.object3D) powD.entity.object3D.visible = powerTimer > 0;
-        if (powerTimer > 0) {
-          this.setText('pow', 'power-name', activePowerName);
-          this.setText('pow', 'power-desc', activePowerDesc);
-          this.setText('pow', 'power-timer', Math.ceil(powerTimer) + 's');
+    // attack patterns based on phase
+    if (b.patternTimer > 1.5) {
+      b.patternTimer = 0;
+      const phase = b.phase;
+      if (phase === 0) {
+        // spread fire
+        for (let i = -2; i <= 2; i++) {
+          const angle = Math.PI + i * 0.3;
+          this.createBullet(e.x - 0.6, e.y, Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED, false);
+        }
+      } else if (phase === 1) {
+        // aimed fire
+        const dx = this.player.x - e.x;
+        const dy = this.player.y - e.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        for (let i = 0; i < 3; i++) {
+          this.createBullet(e.x - 0.6, e.y + (i - 1) * 0.3, (dx / len) * ENEMY_BULLET_SPEED, (dy / len) * ENEMY_BULLET_SPEED, false);
+        }
+      } else {
+        // spiral
+        for (let i = 0; i < 6; i++) {
+          const angle = b.timer * 2 + (Math.PI * 2 * i) / 6;
+          this.createBullet(e.x, e.y, Math.cos(angle) * ENEMY_BULLET_SPEED * 0.8, Math.sin(angle) * ENEMY_BULLET_SPEED * 0.8, false);
         }
       }
     }
 
-    // Title level info
-    if (gameState === 'title') {
-      this.setText('title', 'level-info', 'Level ' + save.level + ' - ' + save.xp + ' XP');
+    // sync hp
+    b.hp = e.hp;
+    if (e.hp <= 0) {
+      this.defeatBoss();
+    } else {
+      // phase transitions
+      const hpPct = e.hp / b.maxHp;
+      if (hpPct < 0.33) b.phase = 2;
+      else if (hpPct < 0.66) b.phase = 1;
+    }
+  }
+
+  defeatBoss() {
+    this.boss.active = false;
+    this.save.totalBossKills++;
+    this.score += 5000;
+    this.showToast('BOSS DEFEATED! +5000');
+    this.audio.explosion();
+    this.triggerShake(2.5);
+    if (this.boss.enemy) {
+      this.spawnParticles(this.boss.enemy.x, this.boss.enemy.y, 0xff4444, 20);
+      // Massive multi-burst explosion
+      for (let i = 0; i < 4; i++) {
+        const ox = (Math.random() - 0.5) * 1.5;
+        const oy = (Math.random() - 0.5) * 1.0;
+        this.spawnParticles(this.boss.enemy.x + ox, this.boss.enemy.y + oy, 0xff8800, 8);
+      }
+    }
+    this.advanceStage();
+  }
+
+  advanceStage() {
+    this.stage++;
+    this.stageKills = 0;
+    this.stageKillTarget = 15 + this.stage * 5;
+    if (this.stage > this.save.maxStage) this.save.maxStage = this.stage;
+    this.showToast('STAGE ' + this.stage);
+    this.stageTransitionTimer = 1.5;
+    this.triggerShake(0.5);
+
+    // Stage-based theme cycling for visual variety
+    if (this.stage % 3 === 0 && this.scene.fog) {
+      const themes = THEMES;
+      const themeIdx = (this.save.selectedTheme + Math.floor(this.stage / 3)) % themes.length;
+      const newTheme = themes[themeIdx];
+      this.scene.fog = new FogExp2(new Color(newTheme.fog).getHex(), 0.04);
+      this.scene.background = new Color(newTheme.bg);
     }
 
-    // Leaderboard
-    if (gameState === 'leaderboard') {
-      for (let i = 0; i < 10; i++) {
-        const entry = save.leaderboard[i];
-        this.setText('lb', 'row' + i, entry ? (i + 1) + '. ' + entry.score + ' (' + entry.mode + ') ' + entry.date : (i + 1) + '. ---');
+    writeSave(this.save);
+  }
+
+  // ─── Collision Detection ───────────────────────────────────────
+  checkCollisions() {
+    const pSize = 0.25;
+
+    // player bullets vs enemies
+    for (const b of this.bullets) {
+      if (!b.active || !b.isPlayer) continue;
+      for (const e of this.enemies) {
+        if (!e.active) continue;
+        const eSize = e.type === 'boss' ? 0.6 : 0.2;
+        if (Math.abs(b.x - e.x) < eSize + 0.1 && Math.abs(b.y - e.y) < eSize + 0.05) {
+          b.active = true; // will be cleaned
+          b.mesh.visible = false;
+          b.active = false;
+          e.hp -= b.damage;
+          this.audio.hit();
+          this.spawnParticles(b.x, b.y, new Color(this.getTheme().enemy).getHex(), 3);
+
+          if (e.hp <= 0) {
+            e.active = false;
+            e.group.visible = false;
+            this.score += e.points * (1 + Math.floor(this.combo / 5)) * this.feverMult;
+            this.combo++;
+            this.comboTimer = 2;
+            this.stageKills++;
+            this.save.totalKills++;
+            this.shotsHit++;
+            this.audio.explosion();
+            this.triggerShake(e.type === 'tank' ? 0.8 : 0.3);
+            this.spawnParticles(e.x, e.y, new Color(this.getTheme().enemy).getHex(), 10);
+
+            // power-up drop chance
+            if (Math.random() < 0.2) {
+              this.spawnPowerUp(e.x, e.y);
+            }
+
+            // xp
+            const leveled = addXp(this.save, e.points / 10);
+            if (leveled) this.showToast('LEVEL UP! Lv.' + this.save.level);
+          }
+        }
       }
     }
 
-    // Achievements
-    if (gameState === 'achievements') {
-      const start = achPage * 15;
-      for (let i = 0; i < 15; i++) {
-        const a = ACHIEVEMENTS[start + i];
-        if (a) {
-          const unlocked = save.achievements.includes(a.id);
-          this.setText('ach', 'ach' + i, (unlocked ? '[x] ' : '[ ] ') + a.name + ': ' + a.desc);
+    // enemy bullets vs player
+    if (!this.player.invincible) {
+      for (const b of this.bullets) {
+        if (!b.active || b.isPlayer) continue;
+        if (Math.abs(b.x - this.player.x) < pSize && Math.abs(b.y - this.player.y) < pSize) {
+          b.active = false;
+          b.mesh.visible = false;
+          if (this.player.shielded) {
+            this.player.shielded = false;
+            this.player.shieldTimer = 0;
+            this.showToast('SHIELD BROKEN');
+          } else {
+            this.hitPlayer();
+          }
+        }
+      }
+    }
+
+    // enemies vs player (collision)
+    if (!this.player.invincible) {
+      for (const e of this.enemies) {
+        if (!e.active) continue;
+        const eSize = e.type === 'boss' ? 0.6 : 0.2;
+        if (Math.abs(e.x - this.player.x) < eSize + pSize && Math.abs(e.y - this.player.y) < eSize + pSize * 0.5) {
+          if (this.player.shielded) {
+            this.player.shielded = false;
+            this.player.shieldTimer = 0;
+            e.hp -= 3;
+            if (e.hp <= 0) { e.active = false; e.group.visible = false; }
+          } else {
+            this.hitPlayer();
+          }
+        }
+      }
+    }
+
+    // player vs power-ups
+    for (const pu of this.powerUps) {
+      if (!pu.active) continue;
+      if (Math.abs(pu.x - this.player.x) < 0.4 && Math.abs(pu.y - this.player.y) < 0.4) {
+        pu.active = false;
+        pu.group.visible = false;
+        this.collectPowerUp(pu.type);
+        this.save.totalPowerUps++;
+      }
+    }
+  }
+
+  hitPlayer() {
+    this.player.lives--;
+    this.save.totalDeaths++;
+    this.combo = 0;
+    this.audio.death();
+    this.triggerShake(1.5);
+    this.spawnParticles(this.player.x, this.player.y, new Color(this.getSkin().color).getHex(), 12);
+
+    if (this.player.lives <= 0) {
+      this.endGame();
+    } else {
+      this.player.invincible = true;
+      this.player.invincTimer = 2;
+      this.showToast('SHIP DESTROYED - ' + this.player.lives + ' LEFT');
+    }
+  }
+
+  collectPowerUp(type: PowerUpType) {
+    this.audio.powerup();
+    switch (type) {
+      case 'spread':
+        this.player.weapon = 'spread';
+        this.player.weaponTimer = 10;
+        this.showToast('SPREAD SHOT');
+        break;
+      case 'laser':
+        this.player.weapon = 'laser';
+        this.player.weaponTimer = 8;
+        this.showToast('LASER BEAM');
+        break;
+      case 'missile':
+        this.player.weapon = 'missile';
+        this.player.weaponTimer = 12;
+        this.showToast('HOMING MISSILES');
+        break;
+      case 'shield':
+        this.player.shielded = true;
+        this.player.shieldTimer = 15;
+        this.showToast('SHIELD ACTIVE');
+        break;
+      case 'speed':
+        this.player.speedBoost = true;
+        this.player.speedTimer = 8;
+        this.player.speed = PLAYER_SPEED * 1.5;
+        this.showToast('SPEED BOOST');
+        break;
+    }
+  }
+
+  // ─── Shooting ──────────────────────────────────────────────────
+  playerShoot() {
+    this.save.totalShots++;
+    this.audio.shoot();
+    const px = this.player.x + 0.3;
+    const py = this.player.y;
+
+    switch (this.player.weapon) {
+      case 'normal':
+        this.createBullet(px, py, BULLET_SPEED, 0, true);
+        break;
+      case 'spread':
+        this.createBullet(px, py, BULLET_SPEED, 0, true);
+        this.createBullet(px, py, BULLET_SPEED * 0.95, BULLET_SPEED * 0.15, true);
+        this.createBullet(px, py, BULLET_SPEED * 0.95, -BULLET_SPEED * 0.15, true);
+        break;
+      case 'laser':
+        this.createBullet(px, py, BULLET_SPEED * 1.5, 0, true, 3);
+        break;
+      case 'missile': {
+        // find nearest enemy
+        let nearest: Enemy | null = null;
+        let minDist = Infinity;
+        for (const e of this.enemies) {
+          if (!e.active) continue;
+          const d = Math.abs(e.x - px) + Math.abs(e.y - py);
+          if (d < minDist) { minDist = d; nearest = e; }
+        }
+        if (nearest) {
+          const dx = nearest.x - px;
+          const dy = nearest.y - py;
+          const len = Math.sqrt(dx * dx + dy * dy) || 1;
+          this.createBullet(px, py, (dx / len) * BULLET_SPEED, (dy / len) * BULLET_SPEED, true, 2);
         } else {
-          this.setText('ach', 'ach' + i, '');
+          this.createBullet(px, py, BULLET_SPEED, 0, true, 2);
         }
-      }
-      this.setText('ach', 'page-info', (achPage + 1) + '/' + Math.ceil(ACHIEVEMENTS.length / 15));
-    }
-
-    // Settings
-    if (gameState === 'settings') {
-      this.setText('set', 'master-vol', '' + save.volumes.master);
-      this.setText('set', 'sfx-vol', '' + save.volumes.sfx);
-      this.setText('set', 'music-vol', '' + save.volumes.music);
-      this.setText('set', 'theme-name', THEMES[themeIdx].name);
-    }
-
-    // Stats
-    if (gameState === 'stats') {
-      const s = save.stats;
-      this.setText('stat', 'stat0', 'Games: ' + s.games);
-      this.setText('stat', 'stat1', 'Total Score: ' + s.totalScore);
-      this.setText('stat', 'stat2', 'Best Score: ' + s.bestScore);
-      this.setText('stat', 'stat3', 'Pegs Hit: ' + s.totalPegs);
-      this.setText('stat', 'stat4', 'Best Combo: x' + s.bestCombo);
-      this.setText('stat', 'stat5', 'Balls Used: ' + s.ballsUsed);
-      this.setText('stat', 'stat6', 'Levels Cleared: ' + s.levelsCleared);
-      this.setText('stat', 'stat7', 'Perfect Clears: ' + s.perfectClears);
-      this.setText('stat', 'stat8', 'Fever Catches: ' + s.feverCatches);
-      this.setText('stat', 'stat9', 'Level: ' + save.level);
-    }
-
-    // Skins
-    if (gameState === 'skins') {
-      for (let i = 0; i < 8; i++) {
-        const unlocked = save.skinsUnlocked[i];
-        const equipped = save.skin === i;
-        this.setText('skin', 'skin' + i, (equipped ? '[*] ' : unlocked ? '[ ] ' : '[L] ') + SKINS[i].name + (unlocked ? '' : ' (' + SKINS[i].unlock + ')'));
+        break;
       }
     }
+  }
 
-    // Game Over
-    if (gameState === 'gameover') {
-      const cleared = orangeCleared >= totalOrange;
-      this.setText('go', 'result-title', cleared ? 'LEVEL CLEAR!' : 'GAME OVER');
-      this.setText('go', 'final-score', 'Score: ' + score);
-      this.setText('go', 'pegs-hit', 'Pegs Hit: ' + totalPegsHit + '/' + pegs.length);
-      this.setText('go', 'orange-cleared', 'Orange: ' + orangeCleared + '/' + totalOrange);
-      this.setText('go', 'balls-left', 'Balls Left: ' + Math.max(0, ballsLeft));
-      this.setText('go', 'best-combo', 'Best Combo: x' + bestComboThisGame);
-      const stars = cleared ? (totalPegsHit === pegs.length ? 3 : score >= 5000 ? 2 : 1) : 0;
-      this.setText('go', 'star-rating', '* '.repeat(stars).trim() || '-');
-      if (stars >= 3) checkAch('three_star', true);
-      const xpGain = Math.floor(score / 10) + totalPegsHit * 2 + (cleared ? 50 : 0);
-      this.setText('go', 'xp-gained', '+' + xpGain + ' XP');
+  // ─── Enemy Shooting ────────────────────────────────────────────
+  enemyShoot(e: Enemy) {
+    if (e.type === 'straight' || e.type === 'formation') return; // basic enemies don't shoot
+    const diff = DIFFICULTY_MULT[this.difficulty];
+    const dx = this.player.x - e.x;
+    const dy = this.player.y - e.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    this.createBullet(e.x - 0.2, e.y, (dx / len) * ENEMY_BULLET_SPEED * diff.speed, (dy / len) * ENEMY_BULLET_SPEED * diff.speed * 0.5, false);
+  }
+
+  // ─── State Transitions ──────────────────────────────────────────
+  startGame(mode: GameMode = 'campaign') {
+    this.mode = mode;
+    this.state = 'countdown';
+    this.score = 0;
+    this.combo = 0;
+    this.comboTimer = 0;
+    this.stage = 1;
+    this.stageTimer = 0;
+    this.stageKills = 0;
+    this.stageKillTarget = 15;
+    this.gameTime = 0;
+    this.countdownVal = 3;
+    this.countdownTimer = 0;
+    this.shotsHit = 0;
+    this.waveNumber = 0;
+    this.feverMult = 1;
+    this.player = this.defaultPlayer();
+    this.clearGameEntities();
+    this.createPlayerShip();
+    this.save.totalGames++;
+
+    // Mode-specific setup
+    switch (mode) {
+      case 'zen':
+        this.player.lives = 99;
+        this.player.shielded = true;
+        this.player.shieldTimer = 99999;
+        break;
+      case 'fever':
+        this.feverMult = 2;
+        this.player.fireRate = FIRE_RATE * 0.6;
+        break;
+      case 'precision':
+        this.player.lives = 1;
+        this.player.fireRate = FIRE_RATE * 2;
+        break;
+      case 'endless':
+        this.stageKillTarget = 999999;
+        break;
+      case 'daily':
+        this.dailySeed = Math.floor(Date.now() / 86400000);
+        break;
+    }
+
+    this.showAllPanels(false);
+    this.showPanel('countdown', true);
+    this.updateCountdownUI();
+  }
+
+  endGame() {
+    this.state = 'gameover';
+    this.audio.gameOver();
+    this.removePlayerShip();
+
+    // save score
+    this.save.totalPlayTime += this.gameTime;
+    if (this.combo > this.save.maxCombo) this.save.maxCombo = this.combo;
+    this.save.highScores.push({
+      name: 'Player', score: this.score,
+      mode: this.mode,
+      date: new Date().toISOString().split('T')[0],
+    });
+    this.save.highScores.sort((a, b) => b.score - a.score);
+    this.save.highScores = this.save.highScores.slice(0, 10);
+
+    const newAch = checkAchievements(this.save);
+    for (const a of newAch) {
+      this.audio.achievement();
+      this.showToast('ACHIEVEMENT: ' + a);
+    }
+    // check skin unlocks
+    this.checkSkinUnlocks();
+    writeSave(this.save);
+
+    this.showAllPanels(false);
+    this.showPanel('gameover', true);
+    this.updateGameOverUI();
+  }
+
+  checkSkinUnlocks() {
+    const unlocks: [string, (s: SaveData) => boolean][] = [
+      ['Solar Flare', s => s.totalKills >= 100],
+      ['Plasma Pink', s => s.highScores.some(h => h.score >= 10000)],
+      ['Frost Core', s => s.totalGames >= 10],
+      ['Toxic Green', s => s.maxCombo >= 10],
+      ['Royal Gold', s => s.totalBossKills >= 1],
+      ['Void Purple', s => s.maxStage >= 5],
+      ['Inferno Red', s => s.totalGames >= 8],
+    ];
+    for (const [name, check] of unlocks) {
+      if (!this.save.unlockedSkins.includes(name) && check(this.save)) {
+        this.save.unlockedSkins.push(name);
+        this.showToast('SKIN UNLOCKED: ' + name);
+      }
     }
   }
-}
 
-// ─── Game System ────────────────────────────────────────────────────
-class PegGameSystem extends createSystem({}) {
-  private kb: any = null;
+  setState(s: GameState) {
+    this.state = s;
+    this.audio.menuClick();
+    this.showAllPanels(false);
+    this.showPanel(s, true);
 
-  init() {
-    this.kb = (world.input as any)?.keyboard || null;
+    if (s === 'title') this.updateTitleUI();
+    if (s === 'modes') this.updateModesUI();
+    if (s === 'leaderboard') this.updateLeaderboardUI();
+    if (s === 'achievements') this.updateAchievementsUI();
+    if (s === 'settings') this.updateSettingsUI();
+    if (s === 'stats') this.updateStatsUI();
+    if (s === 'skins') this.updateSkinsUI();
   }
 
+  showToast(msg: string) {
+    this.toastQueue.push(msg);
+  }
+
+  // ─── Main Update ──────────────────────────────────────────────
   update(delta: number) {
+    // cap delta
     const dt = Math.min(delta, 0.05);
 
-    // Decorations animation
-    decorations.forEach(m => {
-      m.rotation.y += (m as any)._rotSpeed * dt;
-      m.position.y = (m as any)._baseY + Math.sin(Date.now() * 0.001 * (m as any)._bobSpeed) * 0.2;
-    });
-    ambientParts.forEach(m => {
-      m.position.x += (m as any)._drift.x * dt;
-      m.position.y += (m as any)._drift.y * dt;
-      const mat = m.material as MeshStandardMaterial;
-      mat.opacity = 0.3 + Math.sin(Date.now() * 0.002 + (m as any)._phase) * 0.2;
-    });
+    // toast timer
+    if (this.toastQueue.length > 0 && this.toastTimer <= 0) {
+      const msg = this.toastQueue.shift()!;
+      this.updateToastUI(msg);
+      this.showPanel('toast', true);
+      this.toastTimer = 2;
+    }
+    if (this.toastTimer > 0) {
+      this.toastTimer -= dt;
+      if (this.toastTimer <= 0) this.showPanel('toast', false);
+    }
 
-    // Toast timer
-    if (toastTimer > 0) toastTimer -= dt;
-
-    // Power-up timer
-    if (powerTimer > 0) { powerTimer -= dt; if (powerTimer <= 0) powerActive = ''; }
-
-    if (gameState === 'countdown') {
-      countdownTimer += dt;
-      const newNum = 3 - Math.floor(countdownTimer);
-      if (newNum !== countdownNum && newNum >= 0) {
-        countdownNum = newNum;
-        if (countdownNum > 0) audio.countdown();
-        else audio.countdownGo();
-      }
-      if (countdownTimer >= 3.5) {
-        gameState = 'playing';
+    if (this.state === 'countdown') {
+      this.countdownTimer += dt;
+      if (this.countdownTimer >= 1) {
+        this.countdownTimer = 0;
+        this.countdownVal--;
+        this.audio.countdown();
+        if (this.countdownVal <= 0) {
+          this.state = 'playing';
+          this.showAllPanels(false);
+          this.showPanel('hud', true);
+          this.showPanel('powerup', false);
+          this.showPanel('bosshealth', false);
+        } else {
+          this.updateCountdownUI();
+        }
       }
       return;
     }
 
-    if (gameState !== 'playing') {
-      // Hide aim guide and bucket when not playing
-      aimDots.forEach(d => d.visible = false);
-      bucketGroup.visible = false;
-      trailDots.forEach(d => d.visible = false);
-      launcherGroup.visible = (gameState as string) === 'countdown';
-      return;
-    }
+    if (this.state !== 'playing') return;
 
-    launcherGroup.visible = true;
-    bucketGroup.visible = true;
+    this.gameTime += dt;
+    this.scrollOffset += SCROLL_SPEED * dt;
 
-    // Timer modes
-    if (timeLimit > 0) {
-      gameTime += dt;
-      if (gameTime >= timeLimit) { endGame(orangeCleared >= totalOrange); return; }
-    }
+    // Screen shake
+    this.updateShake(dt);
 
-    // Input: aim
-    const kbState = this.kb;
-    if (kbState) {
-      if (kbState.getKeyPressed('KeyA') || kbState.getKeyPressed('ArrowLeft')) aimAngle -= 1.5 * dt;
-      if (kbState.getKeyPressed('KeyD') || kbState.getKeyPressed('ArrowRight')) aimAngle += 1.5 * dt;
-      aimAngle = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, aimAngle));
-
-      if (kbState.getKeyDown('Space') && !shooting) shootBall();
-      if (kbState.getKeyDown('Escape') || kbState.getKeyDown('KeyP')) gameState = 'paused';
-    }
-
-    // XR input
-    const gp = (world.input as any).gamepads?.[0];
-    if (gp) {
-      const axes = gp.getAxesValues?.(InputComponent.Thumbstick) as { x: number; y: number } | undefined;
-      if (axes && Math.abs(axes.x) > 0.1) {
-        aimAngle += axes.x * 1.5 * dt;
-        aimAngle = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, aimAngle));
-      }
-      if (gp.getButtonDown?.(InputComponent.Trigger) && !shooting) shootBall();
-      if (gp.getButtonDown?.('b')) gameState = 'paused';
-    }
-
-    // Update launcher rotation
-    launcherGroup.rotation.z = -aimAngle;
-
-    // Aim guide
-    if (!shooting) {
-      const speed = 5;
-      let ax = Math.sin(aimAngle) * 0.5, ay = CEIL_Y - 0.1;
-      let avx = Math.sin(aimAngle) * speed, avy = -Math.cos(aimAngle) * speed;
-      for (let i = 0; i < 30; i++) {
-        aimDots[i].position.set(ax, ay, 0);
-        aimDots[i].visible = true;
-        ax += avx * 0.04; ay += avy * 0.04; avy += GRAVITY * 0.04;
-        if (ax < WALL_L + BALL_R) { ax = WALL_L + BALL_R; avx = -avx * 0.8; }
-        if (ax > WALL_R - BALL_R) { ax = WALL_R - BALL_R; avx = -avx * 0.8; }
-      }
-    } else {
-      aimDots.forEach(d => d.visible = false);
-    }
-
-    // Fever bucket movement
-    feverBucketX += feverBucketDir * 1.5 * dt;
-    if (feverBucketX > BOARD_W / 2 - 0.5) { feverBucketX = BOARD_W / 2 - 0.5; feverBucketDir = -1; }
-    if (feverBucketX < -BOARD_W / 2 + 0.5) { feverBucketX = -BOARD_W / 2 + 0.5; feverBucketDir = 1; }
-    bucketGroup.position.x = feverBucketX;
-
-    // Ball physics
-    const substeps = 3;
-    const subDt = dt / substeps;
-    for (const ball of balls) {
-      if (!ball.active) continue;
-      for (let s = 0; s < substeps; s++) {
-        ball.vy += GRAVITY * subDt;
-        ball.x += ball.vx * subDt;
-        ball.y += ball.vy * subDt;
-
-        // Wall collisions
-        if (ball.x < WALL_L + ball.radius) { ball.x = WALL_L + ball.radius; ball.vx = Math.abs(ball.vx) * 0.9; audio.wallBounce(); }
-        if (ball.x > WALL_R - ball.radius) { ball.x = WALL_R - ball.radius; ball.vx = -Math.abs(ball.vx) * 0.9; audio.wallBounce(); }
-        if (ball.y > CEIL_Y - ball.radius) { ball.y = CEIL_Y - ball.radius; ball.vy = -Math.abs(ball.vy) * 0.9; }
-
-        // Peg collisions
-        for (const peg of pegs) {
-          if (peg.hit) continue;
-          const dx = ball.x - peg.x, dy = ball.y - peg.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < ball.radius + peg.radius) {
-            // Reflect velocity
-            const nx = dx / dist, ny = dy / dist;
-            const dot = ball.vx * nx + ball.vy * ny;
-            ball.vx -= 2 * dot * nx * 0.85;
-            ball.vy -= 2 * dot * ny * 0.85;
-            // Push ball out
-            ball.x = peg.x + nx * (ball.radius + peg.radius);
-            ball.y = peg.y + ny * (ball.radius + peg.radius);
-
-            // Score the peg
-            peg.hit = true;
-            peg.fadeTimer = 0.5;
-            combo++;
-            pegsHitThisShot++;
-            totalPegsHit++;
-            if (combo > bestComboThisGame) bestComboThisGame = combo;
-
-            // Score calculation - fewer orange remaining = higher points
-            const orangeRemaining = pegs.filter(p => p.type === 'orange' && !p.hit).length;
-            let baseScore = peg.type === 'orange' ? 100 : peg.type === 'green' ? 200 : peg.type === 'purple' ? 150 : 50;
-            // Multiplier based on remaining orange pegs
-            if (orangeRemaining <= 3) baseScore *= 10;
-            else if (orangeRemaining <= 6) baseScore *= 5;
-            else if (orangeRemaining <= 10) baseScore *= 3;
-            else if (orangeRemaining <= 15) baseScore *= 2;
-            // Combo multiplier
-            const comboMult = Math.min(combo, 10);
-            // Purple peg = 3x all
-            const purpleMult = peg.type === 'purple' ? 3 : 1;
-            score += baseScore * comboMult * purpleMult;
-
-            // Particles
-            const pegColors: Record<string, string> = { orange: theme.orange, blue: theme.blue, green: theme.green, purple: theme.purple };
-            spawnParticles(peg.x, peg.y, pegColors[peg.type] || theme.blue, 8);
-
-            // Audio
-            if (peg.type === 'orange') { audio.orangeHit(); orangeCleared++; }
-            else if (peg.type === 'green') { audio.greenHit(); activatePower(); }
-            else if (peg.type === 'purple') { audio.purpleHit(); checkAch('purple_hit', true); }
-            else { audio.pegHit(combo); }
-
-            if (peg.type === 'orange') checkAch('first_hit', true);
-            if (peg.type === 'green') checkAch('green_hit', true);
-            if (pegsHitThisShot >= 5) checkAch('no_miss', true);
-            if (pegsHitThisShot >= 10) checkAch('ten_one_shot', true);
-          }
-        }
-
-        // Ball fell below floor
-        if (ball.y < FLOOR_Y) {
-          // Check fever bucket catch
-          if (Math.abs(ball.x - feverBucketX) < 0.45) {
-            score += 1000 * Math.max(1, combo);
-            save.stats.feverCatches++;
-            audio.feverCatch();
-            spawnParticles(ball.x, FLOOR_Y, '#ffaa00', 20);
-            showToast('FEVER CATCH! +' + (1000 * Math.max(1, combo)));
-            checkAch('fever_catch', true);
-            checkAch('fever_5', save.stats.feverCatches >= 5);
-            checkAch('fever_10', save.stats.feverCatches >= 10);
-            // In fever mode, don't consume ball
-            if (currentMode === 'fever') { ballsLeft++; }
-          } else {
-            audio.ballLost();
-          }
-          removeBall(ball);
-
-          // Check if all balls gone
-          if (!balls.some(b => b.active)) {
-            shooting = false;
-            // Remove hit pegs with fade
-            pegs.forEach(p => { if (p.hit) { p.fadeTimer = 0; } });
-
-            // Check win/lose
-            if (orangeCleared >= totalOrange) {
-              if (currentMode === 'endless') {
-                endlessBoardsCleared++;
-                score += 500; // Board clear bonus
-                showToast('Board Clear! +500');
-                const newPegs = generatePegs(endlessBoardsCleared + 5, rng);
-                createPegMeshes(newPegs);
-              } else {
-                endGame(true);
-                return;
-              }
-            } else if (ballsLeft <= 0 && currentMode !== 'zen') {
-              endGame(false);
-              return;
-            }
-          }
-          continue;
-        }
-      }
-
-      // Update ball mesh position
-      ball.mesh.position.set(ball.x, ball.y, 0);
-      ball.glow.position.set(ball.x, ball.y, 0);
-
-      // Trail
-      ball.trail.push(new Vector3(ball.x, ball.y, 0));
-      if (ball.trail.length > 30) ball.trail.shift();
-    }
-
-    // Update trail dots
-    const activeBall = balls.find(b => b.active);
-    if (activeBall && activeBall.trail.length > 1) {
-      for (let i = 0; i < 30; i++) {
-        const pt = activeBall.trail[activeBall.trail.length - 1 - i];
-        if (pt) { trailDots[i].position.set(pt.x, pt.y, pt.z); trailDots[i].visible = true; }
-        else { trailDots[i].visible = false; }
-      }
-    } else {
-      trailDots.forEach(d => d.visible = false);
-    }
-
-    // Fade hit pegs
-    for (const peg of pegs) {
-      if (peg.hit && peg.fadeTimer > 0) {
-        peg.fadeTimer -= dt;
-        const opacity = Math.max(0, peg.fadeTimer / 0.5);
-        (peg.mesh.material as MeshStandardMaterial).opacity = opacity;
-        (peg.mesh.material as MeshStandardMaterial).transparent = true;
-        (peg.glow.material as MeshStandardMaterial).opacity = opacity * 0.25;
-      } else if (peg.hit && peg.fadeTimer <= 0) {
-        peg.mesh.visible = false;
-        peg.glow.visible = false;
+    // Multi-layer parallax star field
+    for (const layer of this.starLayers) {
+      for (const star of layer.meshes) {
+        star.position.x -= SCROLL_SPEED * layer.speed * dt;
+        if (star.position.x < -20) star.position.x += 40;
+        // Subtle twinkle
+        const mat = star.material as MeshBasicMaterial;
+        mat.opacity += (Math.random() - 0.5) * 0.02;
+        mat.opacity = Math.max(0.1, Math.min(0.9, mat.opacity));
       }
     }
 
-    // Peg glow pulse (unhit pegs)
-    const pulseT = Date.now() * 0.003;
-    for (const peg of pegs) {
-      if (!peg.hit) {
-        const pulse = 0.2 + Math.sin(pulseT + peg.x * 3 + peg.y * 2) * 0.1;
-        (peg.glow.material as MeshStandardMaterial).opacity = pulse;
+    // Background debris
+    if (Math.random() < 0.02) this.spawnDebris();
+    for (const d of this.debris) {
+      if (!d.active) continue;
+      d.x += d.vx * dt;
+      d.group.position.x = d.x;
+      d.mesh.rotation.x += d.rotSpeed * dt;
+      d.mesh.rotation.y += d.rotSpeed * 0.7 * dt;
+      if (d.x < -FIELD_W / 2 - 5) { d.active = false; d.group.visible = false; }
+    }
+    this.debris = this.debris.filter(d => {
+      if (!d.active) { if (d.group.parent) this.gameRoot.remove(d.group); return false; }
+      return true;
+    });
+
+    // Engine trail
+    if (Math.random() < 0.7) this.spawnEngineTrail();
+    this.updateEngineTrail(dt);
+
+    // update player timers
+    this.player.fireTimer -= dt;
+    if (this.player.weaponTimer > 0) {
+      this.player.weaponTimer -= dt;
+      if (this.player.weaponTimer <= 0) this.player.weapon = 'normal';
+    }
+    if (this.player.shieldTimer > 0) {
+      this.player.shieldTimer -= dt;
+      if (this.player.shieldTimer <= 0) { this.player.shielded = false; }
+    }
+    if (this.player.speedTimer > 0) {
+      this.player.speedTimer -= dt;
+      if (this.player.speedTimer <= 0) { this.player.speedBoost = false; this.player.speed = PLAYER_SPEED; }
+    }
+    if (this.player.invincible) {
+      this.player.invincTimer -= dt;
+      if (this.player.invincTimer <= 0) this.player.invincible = false;
+      // flicker
+      if (this.player.group) {
+        this.player.group.visible = Math.floor(this.player.invincTimer * 10) % 2 === 0;
+      }
+    } else if (this.player.group) {
+      this.player.group.visible = true;
+    }
+
+    // combo decay
+    if (this.comboTimer > 0) {
+      this.comboTimer -= dt;
+      if (this.comboTimer <= 0) {
+        this.combo = 0;
+        if (this.mode === 'fever') this.feverMult = Math.max(1, this.feverMult - 1);
+      }
+    }
+    // Fever mode: combo increases multiplier
+    if (this.mode === 'fever' && this.combo > 0 && this.combo % 10 === 0) {
+      const newMult = Math.min(8, 2 + Math.floor(this.combo / 10));
+      if (newMult > this.feverMult) {
+        this.feverMult = newMult;
+        this.showToast('FEVER x' + this.feverMult + '!');
       }
     }
 
-    // Particles
-    for (const p of particles) {
+    // shield visual
+    if (this.player.shieldMesh) {
+      const shieldMat = this.player.shieldMesh.material as MeshBasicMaterial;
+      shieldMat.opacity = this.player.shielded ? 0.3 + Math.sin(this.gameTime * 5) * 0.1 : 0;
+    }
+
+    // update player position
+    if (this.player.group) {
+      this.player.group.position.set(this.player.x, this.player.y, 0);
+    }
+
+    // update enemies
+    for (const e of this.enemies) {
+      if (!e.active) continue;
+      e.timer += dt;
+      e.x += e.vx * dt;
+
+      // movement patterns
+      switch (e.type) {
+        case 'sine':
+          e.y = e.baseY + Math.sin(e.timer * 3) * 2;
+          break;
+        case 'dive':
+          e.vy += (this.player.y > e.y ? 3 : -3) * dt;
+          e.y += e.vy * dt;
+          break;
+        case 'circle':
+          e.y = e.baseY + Math.sin(e.timer * 2) * 2;
+          break;
+        default:
+          e.y += e.vy * dt;
+      }
+
+      // enemy shooting
+      e.fireTimer -= dt;
+      if (e.fireTimer <= 0 && e.type !== 'boss') {
+        e.fireTimer = 2 + Math.random() * 2;
+        this.enemyShoot(e);
+      }
+
+      // remove if off screen
+      if (e.x < -FIELD_W / 2 - 2) { e.active = false; e.group.visible = false; }
+
+      e.group.position.set(e.x, e.y, 0);
+      // rotate for visual flair
+      e.mesh.rotation.z += dt * (e.type === 'circle' ? 3 : 0.5);
+    }
+
+    // update bullets
+    for (const b of this.bullets) {
+      if (!b.active) continue;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.mesh.position.set(b.x, b.y, 0);
+      // off screen check
+      if (b.x < -FIELD_W / 2 - 1 || b.x > FIELD_W / 2 + 1 ||
+          b.y < -FIELD_H / 2 - 1 || b.y > FIELD_H / 2 + 1) {
+        b.active = false;
+        b.mesh.visible = false;
+      }
+    }
+
+    // update power-ups
+    for (const pu of this.powerUps) {
+      if (!pu.active) continue;
+      pu.x -= SCROLL_SPEED * 0.3 * dt;
+      pu.timer += dt;
+      pu.group.position.set(pu.x, pu.y, 0);
+      pu.mesh.rotation.y += dt * 3;
+      pu.mesh.rotation.x += dt * 2;
+      if (pu.x < -FIELD_W / 2 - 1) { pu.active = false; pu.group.visible = false; }
+    }
+
+    // update particles
+    for (const p of this.particles) {
       if (!p.active) continue;
       p.life -= dt;
       if (p.life <= 0) { p.active = false; p.mesh.visible = false; continue; }
-      p.vy += GRAVITY * 0.5 * dt;
-      p.mesh.position.x += p.vx * dt;
-      p.mesh.position.y += p.vy * dt;
-      (p.mesh.material as MeshStandardMaterial).opacity = p.life / p.maxLife;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.95;
+      p.vy *= 0.95;
+      p.mesh.position.set(p.x, p.y, 0);
+      const alpha = p.life / p.maxLife;
+      (p.mesh.material as MeshBasicMaterial).opacity = alpha;
+      const s = alpha * 0.8 + 0.2;
+      p.mesh.scale.set(s, s, s);
     }
 
-    // Zen mode tracking
-    if (currentMode === 'zen') {
-      zenPegsHit = totalPegsHit;
-      checkAch('zen_100', zenPegsHit >= 100);
+    // spawn enemies
+    this.spawnTimer -= dt;
+    if (this.spawnTimer <= 0 && !this.boss.active) {
+      const diff = DIFFICULTY_MULT[this.difficulty];
+      // Stage-based scaling: enemies spawn faster as stages progress
+      const stageScale = 1 + (this.stage - 1) * 0.08;
+      this.spawnTimer = (2 + Math.random() * 2) / (diff.spawn * stageScale);
+      // Fever mode: faster spawns
+      if (this.mode === 'fever') this.spawnTimer *= 0.6;
+      this.waveNumber++;
+      if (this.waveNumber % 5 === 0) {
+        this.showToast('WAVE ' + this.waveNumber);
+      }
+      this.spawnWave();
     }
+
+    // boss update
+    this.updateBoss(dt);
+
+    // collisions
+    this.checkCollisions();
+
+    // cleanup inactive
+    this.enemies = this.enemies.filter(e => {
+      if (!e.active) { if (e.group.parent) this.gameRoot.remove(e.group); return false; }
+      return true;
+    });
+    this.bullets = this.bullets.filter(b => {
+      if (!b.active) { if (b.mesh.parent) this.gameRoot.remove(b.mesh); return false; }
+      return true;
+    });
+    this.powerUps = this.powerUps.filter(p => {
+      if (!p.active) { if (p.group.parent) this.gameRoot.remove(p.group); return false; }
+      return true;
+    });
+    this.particles = this.particles.filter(p => {
+      if (!p.active) { if (p.mesh.parent) this.gameRoot.remove(p.mesh); return false; }
+      return true;
+    });
+
+    // timed mode
+    if (this.mode === 'timed' && this.gameTime >= 120) {
+      this.endGame();
+      return;
+    }
+
+    // update HUD
+    this.updateHudUI();
+
+    // boss health bar
+    if (this.boss.active) {
+      this.showPanel('bosshealth', true);
+      this.updateBossHealthUI();
+    } else {
+      this.showPanel('bosshealth', false);
+    }
+
+    // power-up indicator
+    if (this.player.weapon !== 'normal' || this.player.shielded || this.player.speedBoost) {
+      this.showPanel('powerup', true);
+      this.updatePowerUpUI();
+    } else {
+      this.showPanel('powerup', false);
+    }
+  }
+
+  // ─── Panel Management ──────────────────────────────────────────
+  showPanel(name: string, visible: boolean) {
+    const entity = this.panelEntities.get(name);
+    if (entity?.object3D) entity.object3D.visible = visible;
+  }
+
+  showAllPanels(visible: boolean) {
+    for (const [, entity] of this.panelEntities) {
+      if (entity.object3D) entity.object3D.visible = visible;
+    }
+  }
+
+  getDoc(name: string): UIKitDocument | undefined {
+    const entity = this.panelEntities.get(name);
+    if (!entity) return undefined;
+    return entity.getValue(PanelDocument, 'document') as UIKitDocument | undefined;
+  }
+
+  setText(panelName: string, elementId: string, text: string) {
+    const doc = this.getDoc(panelName);
+    if (!doc) return;
+    const el = doc.getElementById(elementId) as UIKit.Text | undefined;
+    el?.setProperties({ text });
+  }
+
+  // ─── UI Updates ────────────────────────────────────────────────
+  updateTitleUI() {
+    this.setText('title', 'level-text', 'Lv.' + this.save.level);
+    this.setText('title', 'xp-text', 'XP: ' + this.save.xp + '/' + (this.save.level * XP_PER_LEVEL));
+    const hs = this.save.highScores[0];
+    this.setText('title', 'highscore-text', hs ? 'Best: ' + hs.score.toLocaleString() : 'No scores yet');
+  }
+
+  updateModesUI() {
+    // modes panel shows 8 game modes - text already in uikitml
+  }
+
+  updateCountdownUI() {
+    this.setText('countdown', 'count-text', this.countdownVal > 0 ? String(this.countdownVal) : 'GO!');
+  }
+
+  updateHudUI() {
+    this.setText('hud', 'score-val', String(this.score));
+    this.setText('hud', 'lives-val', this.mode === 'zen' ? '∞' : String(this.player.lives));
+    this.setText('hud', 'stage-val', 'Stage ' + this.stage);
+    const comboText = this.combo > 1 ? 'x' + this.combo + (this.feverMult > 1 ? ' FEVER!' : '') : '';
+    this.setText('hud', 'combo-val', comboText);
+    if (this.mode === 'timed') {
+      const rem = Math.max(0, 120 - Math.floor(this.gameTime));
+      this.setText('hud', 'timer-val', String(rem) + 's');
+    } else if (this.mode === 'fever') {
+      this.setText('hud', 'timer-val', this.feverMult + 'x');
+    } else {
+      this.setText('hud', 'timer-val', '');
+    }
+  }
+
+  updateGameOverUI() {
+    this.setText('gameover', 'final-score', String(this.score));
+    this.setText('gameover', 'final-stage', 'Stage ' + this.stage);
+    this.setText('gameover', 'final-kills', String(this.stageKills));
+    const accuracy = this.save.totalShots > 0 ? Math.floor((this.shotsHit / this.save.totalShots) * 100) : 0;
+    const comboStr = 'Best Combo: x' + (this.combo > this.save.maxCombo ? this.combo : this.save.maxCombo);
+    const accStr = this.mode === 'precision' ? ' | Accuracy: ' + accuracy + '%' : '';
+    this.setText('gameover', 'final-combo', comboStr + accStr);
+    const hs = this.save.highScores[0];
+    this.setText('gameover', 'best-score', hs ? 'High Score: ' + hs.score.toLocaleString() : '');
+  }
+
+  updateLeaderboardUI() {
+    for (let i = 0; i < 10; i++) {
+      const entry = this.save.highScores[i];
+      this.setText('leaderboard', 'lb-' + (i + 1), entry
+        ? '#' + (i + 1) + ' ' + entry.score.toLocaleString() + ' (' + entry.mode + ')'
+        : '#' + (i + 1) + ' ---');
+    }
+  }
+
+  updateAchievementsUI() {
+    const unlocked = this.save.achievements.length;
+    const total = ACHIEVEMENTS.length;
+    this.setText('achievements', 'ach-progress', unlocked + '/' + total + ' Unlocked');
+    for (let i = 0; i < Math.min(12, ACHIEVEMENTS.length); i++) {
+      const a = ACHIEVEMENTS[i];
+      const done = this.save.achievements.includes(a.id);
+      this.setText('achievements', 'ach-' + i, (done ? '[*] ' : '[ ] ') + a.name);
+      this.setText('achievements', 'ach-desc-' + i, a.desc);
+    }
+  }
+
+  updateSettingsUI() {
+    this.setText('settings', 'sfx-val', this.save.settings.sfx ? 'ON' : 'OFF');
+    this.setText('settings', 'music-val', this.save.settings.music ? 'ON' : 'OFF');
+    this.setText('settings', 'particles-val', this.save.settings.particles ? 'ON' : 'OFF');
+    this.setText('settings', 'shake-val', this.save.settings.screenShake ? 'ON' : 'OFF');
+    this.setText('settings', 'theme-val', this.getTheme().name);
+  }
+
+  updateStatsUI() {
+    this.setText('stats', 'stat-games', 'Games: ' + this.save.totalGames);
+    this.setText('stats', 'stat-kills', 'Kills: ' + this.save.totalKills);
+    this.setText('stats', 'stat-shots', 'Shots: ' + this.save.totalShots);
+    this.setText('stats', 'stat-deaths', 'Deaths: ' + this.save.totalDeaths);
+    this.setText('stats', 'stat-bosses', 'Bosses: ' + this.save.totalBossKills);
+    this.setText('stats', 'stat-combo', 'Max Combo: x' + this.save.maxCombo);
+    this.setText('stats', 'stat-stage', 'Max Stage: ' + this.save.maxStage);
+    this.setText('stats', 'stat-level', 'Level: ' + this.save.level);
+    this.setText('stats', 'stat-time', 'Play Time: ' + Math.floor(this.save.totalPlayTime / 60) + 'm');
+    this.setText('stats', 'stat-powerups', 'Power-ups: ' + this.save.totalPowerUps);
+  }
+
+  updateSkinsUI() {
+    for (let i = 0; i < SKINS.length; i++) {
+      const skin = SKINS[i];
+      const unlocked = this.save.unlockedSkins.includes(skin.name);
+      const selected = i === this.save.selectedSkin;
+      this.setText('skins', 'btn-skin-' + i,
+        (selected ? '> ' : '  ') + skin.name + (unlocked ? '' : ' [' + skin.unlock + ']'));
+    }
+  }
+
+  updateToastUI(msg: string) {
+    this.setText('toast', 'toast-msg', msg);
+  }
+
+  updateBossHealthUI() {
+    if (!this.boss.active) return;
+    const pct = Math.max(0, Math.floor((this.boss.hp / this.boss.maxHp) * 100));
+    this.setText('bosshealth', 'boss-name', 'BOSS - Stage ' + this.stage);
+    this.setText('bosshealth', 'boss-hp', pct + '%');
+  }
+
+  updatePowerUpUI() {
+    let text = '';
+    if (this.player.weapon !== 'normal') {
+      text += this.player.weapon.toUpperCase() + ' ' + Math.ceil(this.player.weaponTimer) + 's';
+    }
+    if (this.player.shielded) text += (text ? ' | ' : '') + 'SHIELD ' + Math.ceil(this.player.shieldTimer) + 's';
+    if (this.player.speedBoost) text += (text ? ' | ' : '') + 'SPEED ' + Math.ceil(this.player.speedTimer) + 's';
+    this.setText('powerup', 'powerup-text', text);
+  }
+
+  updateDifficultyUI() {
+    this.setText('difficulty', 'diff-label', this.difficulty.toUpperCase());
   }
 }
 
-function activatePower() {
-  const powers = ['multiball', 'guideball', 'spaceblast', 'zenball'];
-  const p = powers[Math.floor(Math.random() * powers.length)];
-  powerActive = p;
-  powerTimer = 15;
-  checkAch('multiball', p === 'multiball');
+// ─── UI System ──────────────────────────────────────────────────────
+class NeonRushUISystem extends createSystem({
+  title: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/title.json')] },
+  modes: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/modes.json')] },
+  difficulty: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/difficulty.json')] },
+  hud: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/hud.json')] },
+  pause: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/pause.json')] },
+  gameover: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/gameover.json')] },
+  leaderboard: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/leaderboard.json')] },
+  achievements: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/achievements.json')] },
+  settings: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/settings.json')] },
+  stats: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/stats.json')] },
+  skins: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/skins.json')] },
+  help: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/help.json')] },
+  toast: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/toast.json')] },
+  countdown: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/countdown.json')] },
+  powerup: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/powerup.json')] },
+  bosshealth: { required: [PanelUI, PanelDocument], where: [eq(PanelUI, 'config', './ui/bosshealth.json')] },
+}) {
+  private game!: GameManager;
 
-  if (p === 'multiball') {
-    activePowerName = 'MULTIBALL';
-    activePowerDesc = 'Ball splits into 3!';
-    // Spawn 2 extra balls from current active ball
-    const ab = balls.find(b => b.active);
-    if (ab) {
-      createBall(ab.x, ab.y, ab.vx + 1.5, ab.vy * 0.8);
-      createBall(ab.x, ab.y, ab.vx - 1.5, ab.vy * 0.8);
-    }
-  } else if (p === 'spaceblast') {
-    activePowerName = 'SPACE BLAST';
-    activePowerDesc = 'Explosion clears nearby pegs!';
-    const ab = balls.find(b => b.active);
-    if (ab) {
-      pegs.forEach(peg => {
-        if (peg.hit) return;
-        const dx = ab.x - peg.x, dy = ab.y - peg.y;
-        if (Math.sqrt(dx * dx + dy * dy) < 1.2) {
-          peg.hit = true; peg.fadeTimer = 0.5;
-          totalPegsHit++; combo++;
-          if (peg.type === 'orange') orangeCleared++;
-          const baseScore = peg.type === 'orange' ? 100 : 50;
-          score += baseScore * Math.min(combo, 10);
-          spawnParticles(peg.x, peg.y, theme.orange, 6);
-        }
+  setGame(g: GameManager) { this.game = g; }
+
+  init() {
+    const bindPanel = (name: string, query: { subscribe: (ev: 'qualify' | 'disqualify', cb: (e: Entity) => void) => void }) => {
+      query.subscribe('qualify', (entity: Entity) => {
+        this.game.panelEntities.set(name, entity);
+        if (entity.object3D) entity.object3D.visible = name === 'title';
+        this.wirePanel(name, entity);
       });
+    };
+
+    bindPanel('title', this.queries.title);
+    bindPanel('modes', this.queries.modes);
+    bindPanel('difficulty', this.queries.difficulty);
+    bindPanel('hud', this.queries.hud);
+    bindPanel('pause', this.queries.pause);
+    bindPanel('gameover', this.queries.gameover);
+    bindPanel('leaderboard', this.queries.leaderboard);
+    bindPanel('achievements', this.queries.achievements);
+    bindPanel('settings', this.queries.settings);
+    bindPanel('stats', this.queries.stats);
+    bindPanel('skins', this.queries.skins);
+    bindPanel('help', this.queries.help);
+    bindPanel('toast', this.queries.toast);
+    bindPanel('countdown', this.queries.countdown);
+    bindPanel('powerup', this.queries.powerup);
+    bindPanel('bosshealth', this.queries.bosshealth);
+  }
+
+  wirePanel(name: string, entity: Entity) {
+    const doc = entity.getValue(PanelDocument, 'document') as UIKitDocument | undefined;
+    if (!doc) return;
+
+    const btn = (id: string, cb: () => void) => {
+      const el = doc.getElementById(id);
+      (el as unknown as { addEventListener?: (ev: string, cb: () => void) => void })?.addEventListener?.('click', cb);
+    };
+
+    switch (name) {
+      case 'title':
+        this.game.updateTitleUI();
+        btn('btn-play', () => this.game.setState('modes'));
+        btn('btn-leaderboard', () => this.game.setState('leaderboard'));
+        btn('btn-achievements', () => this.game.setState('achievements'));
+        btn('btn-settings', () => this.game.setState('settings'));
+        btn('btn-stats', () => this.game.setState('stats'));
+        btn('btn-skins', () => this.game.setState('skins'));
+        btn('btn-help', () => this.game.setState('help'));
+        break;
+
+      case 'modes':
+        for (const mode of MODES) {
+          btn('btn-' + mode, () => {
+            this.game.setState('difficulty');
+            this.game.mode = mode;
+            this.game.updateDifficultyUI();
+          });
+        }
+        btn('btn-modes-back', () => this.game.setState('title'));
+        break;
+
+      case 'difficulty':
+        this.game.updateDifficultyUI();
+        btn('btn-easy', () => { this.game.difficulty = 'easy'; this.game.startGame(this.game.mode); });
+        btn('btn-normal', () => { this.game.difficulty = 'normal'; this.game.startGame(this.game.mode); });
+        btn('btn-hard', () => { this.game.difficulty = 'hard'; this.game.startGame(this.game.mode); });
+        btn('btn-insane', () => { this.game.difficulty = 'insane'; this.game.startGame(this.game.mode); });
+        btn('btn-diff-back', () => this.game.setState('modes'));
+        break;
+
+      case 'pause':
+        btn('btn-resume', () => { this.game.state = 'playing'; this.game.showAllPanels(false); this.game.showPanel('hud', true); });
+        btn('btn-quit', () => { this.game.clearGameEntities(); this.game.removePlayerShip(); this.game.setState('title'); });
+        break;
+
+      case 'gameover':
+        btn('btn-retry', () => this.game.startGame(this.game.mode));
+        btn('btn-go-title', () => { this.game.clearGameEntities(); this.game.setState('title'); });
+        break;
+
+      case 'leaderboard':
+        this.game.updateLeaderboardUI();
+        btn('btn-lb-back', () => this.game.setState('title'));
+        break;
+
+      case 'achievements':
+        this.game.updateAchievementsUI();
+        btn('btn-ach-back', () => this.game.setState('title'));
+        break;
+
+      case 'settings':
+        this.game.updateSettingsUI();
+        btn('btn-sfx', () => {
+          this.game.save.settings.sfx = !this.game.save.settings.sfx;
+          this.game.audio.setEnabled(this.game.save.settings.sfx);
+          this.game.updateSettingsUI();
+          writeSave(this.game.save);
+        });
+        btn('btn-music', () => {
+          this.game.save.settings.music = !this.game.save.settings.music;
+          this.game.updateSettingsUI();
+          writeSave(this.game.save);
+        });
+        btn('btn-particles', () => {
+          this.game.save.settings.particles = !this.game.save.settings.particles;
+          this.game.updateSettingsUI();
+          writeSave(this.game.save);
+        });
+        btn('btn-shake', () => {
+          this.game.save.settings.screenShake = !this.game.save.settings.screenShake;
+          this.game.updateSettingsUI();
+          writeSave(this.game.save);
+        });
+        btn('btn-theme', () => {
+          this.game.save.selectedTheme = (this.game.save.selectedTheme + 1) % THEMES.length;
+          this.game.updateSettingsUI();
+          writeSave(this.game.save);
+        });
+        btn('btn-reset', () => {
+          localStorage.removeItem(SAVE_KEY);
+          this.game.save = defaultSave();
+          this.game.updateSettingsUI();
+        });
+        btn('btn-settings-back', () => this.game.setState('title'));
+        break;
+
+      case 'stats':
+        this.game.updateStatsUI();
+        btn('btn-stats-back', () => this.game.setState('title'));
+        break;
+
+      case 'skins':
+        this.game.updateSkinsUI();
+        for (let i = 0; i < SKINS.length; i++) {
+          btn('btn-skin-' + i, () => {
+            if (this.game.save.unlockedSkins.includes(SKINS[i].name)) {
+              this.game.save.selectedSkin = i;
+              this.game.updateSkinsUI();
+              writeSave(this.game.save);
+            }
+          });
+        }
+        btn('btn-skins-back', () => this.game.setState('title'));
+        break;
+
+      case 'help':
+        btn('btn-help-back', () => this.game.setState('title'));
+        break;
     }
-  } else if (p === 'guideball') {
-    activePowerName = 'GUIDE BALL';
-    activePowerDesc = 'Ball steers toward orange!';
-    // Slight home toward nearest orange peg each frame handled in update
-  } else {
-    activePowerName = 'ZEN BALL';
-    activePowerDesc = 'Extra ball returned!';
-    ballsLeft++;
-  }
-  showToast('Power: ' + activePowerName);
-}
-
-// ─── Create UI Entities ─────────────────────────────────────────────
-const panelConfigs = [
-  { config: './ui/title.json', screen: true },
-  { config: './ui/modes.json', screen: true },
-  { config: './ui/difficulty.json', screen: true },
-  { config: './ui/hud.json', follower: true },
-  { config: './ui/pause.json', screen: true },
-  { config: './ui/gameover.json', screen: true },
-  { config: './ui/leaderboard.json', screen: true },
-  { config: './ui/achievements.json', screen: true },
-  { config: './ui/settings.json', screen: true },
-  { config: './ui/stats.json', screen: true },
-  { config: './ui/skins.json', screen: true },
-  { config: './ui/help.json', screen: true },
-  { config: './ui/toast.json', follower: true },
-  { config: './ui/countdown.json', follower: true },
-  { config: './ui/powerup.json', follower: true },
-  { config: './ui/aimguide.json', follower: true },
-];
-
-for (const pc of panelConfigs) {
-  const entity = world.createEntity();
-  entity.addComponent(PanelUI, { config: pc.config });
-  if (pc.follower) {
-    entity.addComponent(Follower);
-    const ov = entity.getVectorView(Follower, 'offsetPosition');
-    if (pc.config.includes('hud')) { ov[0] = -0.15; ov[1] = 0.1; ov[2] = -0.4; }
-    else if (pc.config.includes('toast')) { ov[0] = 0; ov[1] = -0.08; ov[2] = -0.4; }
-    else if (pc.config.includes('countdown')) { ov[0] = 0; ov[1] = 0; ov[2] = -0.5; }
-    else if (pc.config.includes('powerup')) { ov[0] = 0.15; ov[1] = 0.1; ov[2] = -0.4; }
-    else if (pc.config.includes('aimguide')) { ov[0] = 0.15; ov[1] = -0.05; ov[2] = -0.4; }
-    entity.setValue(Follower, 'target', world.player.head);
-  } else {
-    entity.addComponent(ScreenSpace);
   }
 }
 
-// Register systems
-world.registerSystem(PegUISystem);
-world.registerSystem(PegGameSystem);
+// ─── Game Loop System ───────────────────────────────────────────────
+class NeonRushGameSystem extends createSystem({}) {
+  private game!: GameManager;
 
-// Init audio volumes
-audio.setVolumes(save.volumes.master, save.volumes.sfx, save.volumes.music);
+  setGame(g: GameManager) { this.game = g; }
+
+  update(delta: number, _time: number) {
+    if (!this.game) return;
+    this.handleInput(delta);
+    this.game.update(delta);
+  }
+
+  handleInput(delta: number) {
+    if (this.game.state !== 'playing' && this.game.state !== 'paused') {
+      // menu navigation via keyboard
+      return;
+    }
+
+    const kb = this.input.keyboard;
+
+    // Pause toggle
+    if (kb.getKeyDown('Escape') || kb.getKeyDown('KeyP')) {
+      if (this.game.state === 'playing') {
+        this.game.state = 'paused';
+        this.game.showAllPanels(false);
+        this.game.showPanel('pause', true);
+        return;
+      } else if (this.game.state === 'paused') {
+        this.game.state = 'playing';
+        this.game.showAllPanels(false);
+        this.game.showPanel('hud', true);
+        return;
+      }
+    }
+
+    if (this.game.state !== 'playing') return;
+
+    const speed = this.game.player.speed * delta;
+
+    // Movement - WASD / Arrow keys
+    if (kb.getKeyPressed('ArrowUp') || kb.getKeyPressed('KeyW')) {
+      this.game.player.y = Math.min(FIELD_H / 2 - 0.3, this.game.player.y + speed);
+    }
+    if (kb.getKeyPressed('ArrowDown') || kb.getKeyPressed('KeyS')) {
+      this.game.player.y = Math.max(-FIELD_H / 2 + 0.3, this.game.player.y - speed);
+    }
+    if (kb.getKeyPressed('ArrowLeft') || kb.getKeyPressed('KeyA')) {
+      this.game.player.x = Math.max(-FIELD_W / 2 + 0.3, this.game.player.x - speed);
+    }
+    if (kb.getKeyPressed('ArrowRight') || kb.getKeyPressed('KeyD')) {
+      this.game.player.x = Math.min(FIELD_W / 2 - 2, this.game.player.x + speed);
+    }
+
+    // Shooting - Space / Z
+    if (kb.getKeyPressed('Space') || kb.getKeyPressed('KeyZ')) {
+      if (this.game.player.fireTimer <= 0) {
+        this.game.player.fireTimer = this.game.player.fireRate;
+        this.game.playerShoot();
+      }
+    }
+
+    // XR input
+    const right = this.input.xr?.gamepads?.right;
+    const left = this.input.xr?.gamepads?.left;
+    if (right) {
+      const stick = right.getAxesValues(InputComponent.Thumbstick);
+      if (stick) {
+        this.game.player.x = Math.max(-FIELD_W / 2 + 0.3, Math.min(FIELD_W / 2 - 2, this.game.player.x + stick.x * speed));
+        this.game.player.y = Math.max(-FIELD_H / 2 + 0.3, Math.min(FIELD_H / 2 - 0.3, this.game.player.y + stick.y * speed));
+      }
+      if (right.getButtonPressed(InputComponent.Trigger)) {
+        if (this.game.player.fireTimer <= 0) {
+          this.game.player.fireTimer = this.game.player.fireRate;
+          this.game.playerShoot();
+        }
+      }
+      if (right.getButtonDown(InputComponent.B_Button)) {
+        if (this.game.state === 'playing') {
+          this.game.state = 'paused';
+          this.game.showAllPanels(false);
+          this.game.showPanel('pause', true);
+        }
+      }
+    }
+    // Left controller: movement via left stick
+    if (left) {
+      const leftStick = left.getAxesValues(InputComponent.Thumbstick);
+      if (leftStick) {
+        this.game.player.x = Math.max(-FIELD_W / 2 + 0.3, Math.min(FIELD_W / 2 - 2, this.game.player.x + leftStick.x * speed));
+        this.game.player.y = Math.max(-FIELD_H / 2 + 0.3, Math.min(FIELD_H / 2 - 0.3, this.game.player.y + leftStick.y * speed));
+      }
+      // Left trigger also shoots
+      if (left.getButtonPressed(InputComponent.Trigger)) {
+        if (this.game.player.fireTimer <= 0) {
+          this.game.player.fireTimer = this.game.player.fireRate;
+          this.game.playerShoot();
+        }
+      }
+    }
+  }
+}
+
+// ─── Boot ───────────────────────────────────────────────────────────
+async function main() {
+  const container = document.getElementById('app') as HTMLDivElement;
+  const world = await World.create(container, {
+    xr: { offer: 'once' as const },
+    render: {
+      defaultLighting: false,
+      near: 0.01,
+      far: 100,
+      camera: { position: [0, 1.6, 0], lookAt: [0, 1.35, -1.5] },
+    },
+    input: { canvasPointerEvents: true },
+    features: {
+      grabbing: false,
+      locomotion: false,
+      physics: false,
+    },
+  });
+
+  const game = new GameManager();
+  game.world = world;
+  game.audio.init();
+  game.setupScene();
+
+  // create panel entities
+  const panelConfigs = [
+    'title', 'modes', 'difficulty', 'hud', 'pause', 'gameover',
+    'leaderboard', 'achievements', 'settings', 'stats', 'skins',
+    'help', 'toast', 'countdown', 'powerup', 'bosshealth',
+  ];
+
+  const panelSetup: Record<string, { pos: [number, number, number]; mw: number; mh: number; vis: boolean }> = {
+    title:        { pos: [0, 1.35, -1.15], mw: 500, mh: 600, vis: true },
+    modes:        { pos: [0, 1.35, -1.15], mw: 500, mh: 620, vis: false },
+    difficulty:   { pos: [0, 1.35, -1.15], mw: 450, mh: 500, vis: false },
+    hud:          { pos: [0, 2.0, -1.5],   mw: 600, mh: 60,  vis: false },
+    pause:        { pos: [0, 1.35, -1.15], mw: 450, mh: 350, vis: false },
+    gameover:     { pos: [0, 1.35, -1.15], mw: 500, mh: 500, vis: false },
+    leaderboard:  { pos: [0, 1.35, -1.15], mw: 500, mh: 600, vis: false },
+    achievements: { pos: [0, 1.35, -1.15], mw: 500, mh: 650, vis: false },
+    settings:     { pos: [0, 1.35, -1.15], mw: 500, mh: 550, vis: false },
+    stats:        { pos: [0, 1.35, -1.15], mw: 500, mh: 500, vis: false },
+    skins:        { pos: [0, 1.35, -1.15], mw: 500, mh: 500, vis: false },
+    help:         { pos: [0, 1.35, -1.15], mw: 500, mh: 600, vis: false },
+    toast:        { pos: [0, 2.1, -1.5],   mw: 400, mh: 60,  vis: false },
+    countdown:    { pos: [0, 1.4, -1.5],   mw: 300, mh: 200, vis: false },
+    powerup:      { pos: [0, 1.85, -1.5],  mw: 400, mh: 50,  vis: false },
+    bosshealth:   { pos: [0, 2.2, -1.5],   mw: 400, mh: 50,  vis: false },
+  };
+
+  for (const name of panelConfigs) {
+    const cfg = panelSetup[name] || { pos: [0, 1.35, -1.15], mw: 500, mh: 500, vis: false };
+    const entity = world.createTransformEntity();
+    entity.object3D!.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+    entity.addComponent(PanelUI, { config: './ui/' + name + '.json', maxWidth: cfg.mw, maxHeight: cfg.mh });
+    entity.object3D!.visible = cfg.vis;
+  }
+
+  // register systems
+  world.registerSystem(NeonRushUISystem);
+  world.registerSystem(NeonRushGameSystem);
+
+  const uiSys = world.getSystem(NeonRushUISystem)!;
+  uiSys.setGame(game);
+
+  const gameSys = world.getSystem(NeonRushGameSystem)!;
+  gameSys.setGame(game);
+}
+
+main().catch(console.error);

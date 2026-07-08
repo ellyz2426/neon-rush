@@ -1,7 +1,7 @@
-<container flexDirection="row" justifyContent="space-between" alignItems="center" gap="8" width="400" height="36" padding="4">
-  <text name="mode-label" fontSize="10" color="#888888">Campaign</text>
-  <text name="level-label" fontSize="10" color="#00ffff">Level 1</text>
-  <text name="moves-label" fontSize="12" fontWeight="bold" color="#ffaa00">Moves: 0</text>
-  <text name="time-label" fontSize="12" fontWeight="bold" color="#44ff44">0:00</text>
-  <text name="score-label" fontSize="12" fontWeight="bold" color="#ff44ff">0</text>
+<container flexDirection="row" justifyContent="space-between" alignItems="center" gap="8" width="500" height="36" padding="4">
+  <text name="score-val" fontSize="16" fontWeight="bold" color="#00ffff">0</text>
+  <text name="stage-val" fontSize="12" color="#aaaaaa">Stage 1</text>
+  <text name="combo-val" fontSize="12" fontWeight="bold" color="#ffaa00"></text>
+  <text name="timer-val" fontSize="12" color="#ff8800"></text>
+  <text name="lives-val" fontSize="12" color="#ff4444">3</text>
 </container>
