@@ -1,0 +1,14 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" gap="3" width="300" height="300">
+  <text fontSize="18" fontWeight="bold" color="#ff8844">BLOCK SKINS</text>
+  <container flexDirection="column" gap="2" width="260">
+    <text name="skin-1" fontSize="10" color="#00ffff" cursor="pointer">[*] Neon Cyan (Default)</text>
+    <text name="skin-2" fontSize="10" color="#ff4444" cursor="pointer">[ ] Solar Flare (50 solves)</text>
+    <text name="skin-3" fontSize="10" color="#ff44ff" cursor="pointer">[ ] Plasma Pink (5K score)</text>
+    <text name="skin-4" fontSize="10" color="#88ccff" cursor="pointer">[ ] Frost Blue (10 games)</text>
+    <text name="skin-5" fontSize="10" color="#44ff44" cursor="pointer">[ ] Toxic Green (x5 combo)</text>
+    <text name="skin-6" fontSize="10" color="#ffaa00" cursor="pointer">[ ] Royal Gold (perfect)</text>
+    <text name="skin-7" fontSize="10" color="#8844ff" cursor="pointer">[ ] Void Purple (80% opt)</text>
+    <text name="skin-8" fontSize="10" color="#ff8844" cursor="pointer">[ ] Inferno (all modes)</text>
+  </container>
+  <text name="btn-back" fontSize="12" color="#888888" backgroundColor="#222222" borderColor="#666666" borderWidth="1" borderRadius="4" padding="4" width="100" textAlign="center" cursor="pointer">BACK</text>
+</container>

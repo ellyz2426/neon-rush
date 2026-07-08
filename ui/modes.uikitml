@@ -1,0 +1,14 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" gap="4" width="320" height="380">
+  <text fontSize="20" fontWeight="bold" color="#00ffff">SELECT MODE</text>
+  <container flexDirection="column" gap="3" alignItems="center" width="280">
+    <text name="btn-campaign" fontSize="13" fontWeight="bold" color="#00ffff" backgroundColor="#003344" borderColor="#00ffff" borderWidth="1" borderRadius="4" padding="5" width="260" textAlign="center" cursor="pointer">CAMPAIGN</text>
+    <text name="btn-quickplay" fontSize="13" fontWeight="bold" color="#44ff44" backgroundColor="#003300" borderColor="#44ff44" borderWidth="1" borderRadius="4" padding="5" width="260" textAlign="center" cursor="pointer">QUICK PLAY</text>
+    <text name="btn-timed" fontSize="13" fontWeight="bold" color="#ffaa00" backgroundColor="#332200" borderColor="#ffaa00" borderWidth="1" borderRadius="4" padding="5" width="260" textAlign="center" cursor="pointer">TIME ATTACK</text>
+    <text name="btn-zen" fontSize="13" fontWeight="bold" color="#88ccff" backgroundColor="#112233" borderColor="#88ccff" borderWidth="1" borderRadius="4" padding="5" width="260" textAlign="center" cursor="pointer">ZEN</text>
+    <text name="btn-daily" fontSize="13" fontWeight="bold" color="#ff44ff" backgroundColor="#330033" borderColor="#ff44ff" borderWidth="1" borderRadius="4" padding="5" width="260" textAlign="center" cursor="pointer">DAILY CHALLENGE</text>
+    <text name="btn-speed" fontSize="13" fontWeight="bold" color="#ff4444" backgroundColor="#330000" borderColor="#ff4444" borderWidth="1" borderRadius="4" padding="5" width="260" textAlign="center" cursor="pointer">SPEED RUN</text>
+    <text name="btn-minimal" fontSize="13" fontWeight="bold" color="#ffff44" backgroundColor="#333300" borderColor="#ffff44" borderWidth="1" borderRadius="4" padding="5" width="260" textAlign="center" cursor="pointer">MINIMAL MOVES</text>
+    <text name="btn-endless" fontSize="13" fontWeight="bold" color="#ff8844" backgroundColor="#331100" borderColor="#ff8844" borderWidth="1" borderRadius="4" padding="5" width="260" textAlign="center" cursor="pointer">ENDLESS</text>
+  </container>
+  <text name="btn-back" fontSize="12" color="#888888" backgroundColor="#222222" borderColor="#666666" borderWidth="1" borderRadius="4" padding="4" width="100" textAlign="center" cursor="pointer">BACK</text>
+</container>

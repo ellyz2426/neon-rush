@@ -1,0 +1,28 @@
+<container flexDirection="column" alignItems="center" justifyContent="center" gap="3" width="320" height="400">
+  <text fontSize="18" fontWeight="bold" color="#aaaaaa">HELP</text>
+  <container flexDirection="column" gap="2" width="290">
+    <text fontSize="12" fontWeight="bold" color="#00ffff">Browser Controls</text>
+    <text fontSize="9" color="#aaaaaa">Click + Drag: Slide block</text>
+    <text fontSize="9" color="#aaaaaa">R: Restart puzzle</text>
+    <text fontSize="9" color="#aaaaaa">U: Undo last move</text>
+    <text fontSize="9" color="#aaaaaa">H: Show hint</text>
+    <text fontSize="9" color="#aaaaaa">ESC / P: Pause</text>
+    <text fontSize="12" fontWeight="bold" color="#00ffff">VR Controls</text>
+    <text fontSize="9" color="#aaaaaa">Trigger: Select/Slide block</text>
+    <text fontSize="9" color="#aaaaaa">Thumbstick: Slide direction</text>
+    <text fontSize="9" color="#aaaaaa">B: Pause</text>
+    <text fontSize="9" color="#aaaaaa">A: Undo</text>
+    <text fontSize="12" fontWeight="bold" color="#ffaa00">How to Play</text>
+    <text fontSize="9" color="#aaaaaa">Slide blocks to clear a path</text>
+    <text fontSize="9" color="#aaaaaa">for the GOLD block to reach</text>
+    <text fontSize="9" color="#aaaaaa">the EXIT on the right side.</text>
+    <text fontSize="9" color="#aaaaaa">Blocks slide only along their</text>
+    <text fontSize="9" color="#aaaaaa">orientation (H or V).</text>
+    <text fontSize="12" fontWeight="bold" color="#44ff44">Scoring</text>
+    <text fontSize="9" color="#aaaaaa">Base: 1000 per puzzle</text>
+    <text fontSize="9" color="#aaaaaa">Move bonus: fewer = more pts</text>
+    <text fontSize="9" color="#aaaaaa">Time bonus: faster = more pts</text>
+    <text fontSize="9" color="#aaaaaa">Stars: 1-3 based on moves</text>
+  </container>
+  <text name="btn-back" fontSize="12" color="#888888" backgroundColor="#222222" borderColor="#666666" borderWidth="1" borderRadius="4" padding="4" width="100" textAlign="center" cursor="pointer">BACK</text>
+</container>

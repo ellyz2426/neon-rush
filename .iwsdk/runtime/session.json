@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "sessionId": "828ecffd-7548-4362-a6fa-12a687fd9e0a",
+  "workspaceRoot": "/home/hatch/workspace/neon-peg",
+  "pid": 7485,
+  "port": 8081,
+  "localUrl": "http://localhost:8081/",
+  "networkUrls": [
+    "http://198.19.0.2:8081/"
+  ],
+  "aiMode": "agent",
+  "browser": {
+    "status": "connected",
+    "connected": true,
+    "commandReady": false,
+    "connectedClientCount": 1,
+    "lastTransitionAt": "2026-07-07T19:17:49.977Z",
+    "lastBridgeConnectedAt": "2026-07-07T19:17:49.977Z"
+  },
+  "registeredAt": "2026-07-07T19:16:50.169Z",
+  "updatedAt": "2026-07-07T19:17:49.985Z"
+}

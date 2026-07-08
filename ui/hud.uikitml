@@ -1,0 +1,7 @@
+<container flexDirection="row" justifyContent="space-between" alignItems="center" gap="8" width="400" height="36" padding="4">
+  <text name="mode-label" fontSize="10" color="#888888">Campaign</text>
+  <text name="level-label" fontSize="10" color="#00ffff">Level 1</text>
+  <text name="moves-label" fontSize="12" fontWeight="bold" color="#ffaa00">Moves: 0</text>
+  <text name="time-label" fontSize="12" fontWeight="bold" color="#44ff44">0:00</text>
+  <text name="score-label" fontSize="12" fontWeight="bold" color="#ff44ff">0</text>
+</container>
