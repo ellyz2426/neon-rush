@@ -1,28 +1,32 @@
-<container flexDirection="column" alignItems="center" justifyContent="center" gap="3" width="320" height="430">
+<container flexDirection="column" alignItems="center" justifyContent="center" gap="3" width="320" height="460">
   <text fontSize="18" fontWeight="bold" color="#aaaaaa" marginBottom="4">HOW TO PLAY</text>
   <text fontSize="10" color="#00ffff" width="280">CONTROLS (Keyboard):</text>
   <text fontSize="9" color="#cccccc" width="280">WASD / Arrows - Move ship</text>
   <text fontSize="9" color="#cccccc" width="280">Space / Z - Rapid fire</text>
   <text fontSize="9" color="#cccccc" width="280">Hold X / C - Charge shot</text>
   <text fontSize="9" color="#cccccc" width="280">B - Deploy bomb (clears screen)</text>
+  <text fontSize="9" color="#cccccc" width="280">Shift - Dash (invincible dodge)</text>
   <text fontSize="9" color="#cccccc" width="280">Escape / P - Pause</text>
   <text fontSize="10" color="#00ffff" width="280" marginTop="3">CONTROLS (VR):</text>
   <text fontSize="9" color="#cccccc" width="280">Thumbsticks - Move</text>
   <text fontSize="9" color="#cccccc" width="280">Triggers - Shoot</text>
   <text fontSize="9" color="#cccccc" width="280">Hold A - Charge shot</text>
   <text fontSize="9" color="#cccccc" width="280">Y button - Deploy bomb</text>
+  <text fontSize="9" color="#cccccc" width="280">L Squeeze - Dash</text>
   <text fontSize="9" color="#cccccc" width="280">B button - Pause</text>
   <text fontSize="10" color="#ffaa00" width="280" marginTop="3">POWER-UPS:</text>
   <text fontSize="9" color="#ff8800" width="280">Spread - Multi-directional (Lv.1-3)</text>
   <text fontSize="9" color="#00ff88" width="280">Laser - Piercing beam (Lv.1-3)</text>
   <text fontSize="9" color="#ff4444" width="280">Missile - Homing shots (Lv.1-3)</text>
-  <text fontSize="9" color="#4488ff" width="280">Shield - Block hit (2nd = Drone)</text>
+  <text fontSize="9" color="#4488ff" width="280">Shield - Block+Reflect (2nd = Drone)</text>
   <text fontSize="9" color="#ffff00" width="280">Speed - Move faster</text>
   <text fontSize="9" color="#ff44ff" width="280">Magnet - Attracts power-ups</text>
   <text fontSize="9" color="#ff0000" width="280">Bomb - Extra bomb charge (+1)</text>
   <text fontSize="10" color="#ff44ff" width="280" marginTop="3">ADVANCED:</text>
-  <text fontSize="9" color="#cccccc" width="280">Graze bullets for bonus (slow-mo!)</text>
-  <text fontSize="9" color="#cccccc" width="280">Drones orbit and auto-fire (max 4)</text>
-  <text fontSize="9" color="#cccccc" width="280">Bombs clear screen (start with 3)</text>
+  <text fontSize="9" color="#cccccc" width="280">Dash through danger (1.2s cooldown)</text>
+  <text fontSize="9" color="#cccccc" width="280">Chain kills: nearby enemies take splash</text>
+  <text fontSize="9" color="#cccccc" width="280">Shield reflects bullets at enemies</text>
+  <text fontSize="9" color="#cccccc" width="280">Boss kills cancel all enemy bullets</text>
+  <text fontSize="9" color="#cccccc" width="280">Watch for Danger Zones and Challenges!</text>
   <text name="btn-help-back" fontSize="12" color="#aaaaaa" backgroundColor="#222222" borderRadius="4" padding="5" width="120" textAlign="center" cursor="pointer" marginTop="4">BACK</text>
 </container>

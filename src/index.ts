@@ -145,6 +145,12 @@ interface PlayerState {
   bombs: number;
   magnetActive: boolean;
   magnetTimer: number;
+  // Dash mechanic
+  dashCooldown: number;
+  isDashing: boolean;
+  dashTimer: number;
+  dashDirX: number;
+  dashDirY: number;
 }
 
 interface BossState {
@@ -181,6 +187,12 @@ interface SaveData {
   totalCarrierKills: number;
   totalBombs: number;
   totalMagnets: number;
+  totalDashes: number;
+  totalChainKills: number;
+  totalDangerZonesCleared: number;
+  totalBulletsCanceled: number;
+  totalShieldReflects: number;
+  totalChallengesCompleted: number;
   maxCombo: number;
   maxStage: number;
   maxGrazeStreak: number;
@@ -295,6 +307,15 @@ const ACHIEVEMENTS: Achievement[] = [
   { id: 'stage_15', name: 'Beyond the Void', desc: 'Reach stage 15', check: s => s.maxStage >= 15 },
   { id: 'stage_20', name: 'Galactic Overlord', desc: 'Reach stage 20', check: s => s.maxStage >= 20 },
   { id: 'boss_20', name: 'Boss Annihilator', desc: 'Defeat 20 bosses', check: s => s.totalBossKills >= 20 },
+  // Round 5 achievements — dash, chain kills, danger zones, shield reflects, challenges
+  { id: 'dash_10', name: 'Quick Reflexes', desc: 'Dash 10 times', check: s => s.totalDashes >= 10 },
+  { id: 'dash_50', name: 'Phantom Pilot', desc: 'Dash 50 times', check: s => s.totalDashes >= 50 },
+  { id: 'chain_5', name: 'Chain Reaction', desc: '5 chain kills total', check: s => s.totalChainKills >= 5 },
+  { id: 'chain_25', name: 'Domino Effect', desc: '25 chain kills total', check: s => s.totalChainKills >= 25 },
+  { id: 'danger_1', name: 'Danger Zone Survivor', desc: 'Clear a Danger Zone', check: s => s.totalDangerZonesCleared >= 1 },
+  { id: 'danger_5', name: 'Danger Junkie', desc: 'Clear 5 Danger Zones', check: s => s.totalDangerZonesCleared >= 5 },
+  { id: 'reflect_10', name: 'Mirror Shield', desc: 'Reflect 10 bullets', check: s => s.totalShieldReflects >= 10 },
+  { id: 'challenge_5', name: 'Challenge Accepted', desc: 'Complete 5 challenges', check: s => s.totalChallengesCompleted >= 5 },
 ];
 
 const DIFFICULTY_MULT: Record<Difficulty, { speed: number; hp: number; fire: number; spawn: number }> = {
@@ -313,6 +334,8 @@ function defaultSave(): SaveData {
     totalGames: 0, totalPlayTime: 0, totalPowerUps: 0, totalBossKills: 0,
     totalGrazes: 0, totalMiniBossKills: 0, totalAsteroidsDestroyed: 0,
     totalDroneKills: 0, totalChargeShots: 0, totalCarrierKills: 0, totalBombs: 0, totalMagnets: 0,
+    totalDashes: 0, totalChainKills: 0, totalDangerZonesCleared: 0,
+    totalBulletsCanceled: 0, totalShieldReflects: 0, totalChallengesCompleted: 0,
     maxCombo: 0, maxStage: 0, maxGrazeStreak: 0,
     achievements: [], unlockedSkins: ['Neon Cyan'],
     selectedSkin: 0, selectedTheme: 0, xp: 0, level: 1,
@@ -399,6 +422,14 @@ class AudioEngine {
   magnetPickup() { this.play(500, 0.12, 'sine', 0.1); this.play(700, 0.1, 'sine', 0.08); this.play(900, 0.08, 'sine', 0.06); }
   sniperShot() { this.play(1600, 0.04, 'square', 0.08); this.play(800, 0.06, 'sawtooth', 0.06); }
   slowMotion() { this.play(200, 0.3, 'sine', 0.08); }
+  dash() { this.play(1000, 0.1, 'sine', 0.1); this.play(1400, 0.06, 'square', 0.06); }
+  chainKill() { this.play(600, 0.1, 'sine', 0.1); this.play(800, 0.08, 'sine', 0.08); }
+  dangerZone() { this.play(150, 0.6, 'square', 0.15); this.play(200, 0.4, 'sawtooth', 0.1); }
+  dangerZoneClear() { this.play(523, 0.2, 'sine', 0.15); this.play(659, 0.2, 'sine', 0.12); this.play(784, 0.2, 'sine', 0.12); this.play(1047, 0.3, 'sine', 0.1); }
+  shieldReflect() { this.play(1200, 0.08, 'square', 0.1); this.play(800, 0.1, 'sine', 0.08); }
+  bulletCancel() { this.play(500, 0.15, 'sine', 0.06); }
+  challengeStart() { this.play(440, 0.08, 'square', 0.1); this.play(660, 0.08, 'square', 0.08); }
+  challengeComplete() { this.play(660, 0.1, 'sine', 0.12); this.play(880, 0.1, 'sine', 0.1); this.play(1100, 0.15, 'sine', 0.08); }
 }
 
 // ─── Game Manager ───────────────────────────────────────────────────
@@ -488,6 +519,26 @@ class GameManager {
   stageClearTimer = 0;
   stageClearActive = false;
 
+  // danger zone event
+  dangerZoneActive = false;
+  dangerZoneKills = 0;
+  dangerZoneTarget = 0;
+  dangerZoneTimer = 0;
+
+  // micro-challenge system
+  challengeActive = false;
+  challengeType: 'kill' | 'graze' | 'combo' = 'kill';
+  challengeTarget = 0;
+  challengeProgress = 0;
+  challengeTimer = 0;
+  challengeCooldown = 0;
+
+  // dash afterimages
+  dashAfterimages: { mesh: Mesh; life: number; }[] = [];
+
+  // chain kill tracking
+  recentKillPositions: { x: number; y: number; time: number }[] = [];
+
   constructor() {
     this.save = loadSave();
   }
@@ -506,6 +557,7 @@ class GameManager {
       drones: [], droneCount: 0,
       grazeCount: 0, grazeTotal: 0,
       bombs: 3, magnetActive: false, magnetTimer: 0,
+      dashCooldown: 0, isDashing: false, dashTimer: 0, dashDirX: 1, dashDirY: 0,
     };
   }
 
@@ -930,6 +982,8 @@ class GameManager {
           this.audio.graze();
           // visual graze spark
           this.spawnParticles(this.player.x, this.player.y, 0xffffff, 2);
+          // Challenge graze tracking
+          if (this.challengeActive && this.challengeType === 'graze') this.challengeProgress++;
           if (this.player.grazeCount % 10 === 0) {
             this.showToast('GRAZE x' + this.player.grazeCount + '!');
             // Trigger brief slow-motion on graze milestones
@@ -1066,6 +1120,285 @@ class GameManager {
     this.slowMotionTimer = duration;
     this.slowMotionFactor = 0.3; // 30% game speed
     this.audio.slowMotion();
+  }
+
+  // ─── Dash System ─────────────────────────────────────────────
+  performDash(dirX: number, dirY: number) {
+    if (this.player.dashCooldown > 0 || this.player.isDashing || this.state !== 'playing') return;
+    const len = Math.sqrt(dirX * dirX + dirY * dirY);
+    if (len < 0.1) { dirX = 1; dirY = 0; } // default dash right if no direction
+    else { dirX /= len; dirY /= len; }
+
+    this.player.isDashing = true;
+    this.player.dashTimer = 0.15; // 0.15s dash duration
+    this.player.dashDirX = dirX;
+    this.player.dashDirY = dirY;
+    this.player.invincible = true;
+    this.player.invincTimer = Math.max(this.player.invincTimer, 0.2);
+    this.save.totalDashes++;
+    this.audio.dash();
+    this.triggerShake(0.2);
+  }
+
+  updateDash(dt: number) {
+    // cooldown tick
+    if (this.player.dashCooldown > 0) this.player.dashCooldown -= dt;
+
+    if (!this.player.isDashing) return;
+    this.player.dashTimer -= dt;
+
+    const dashSpeed = PLAYER_SPEED * 4; // 4x speed burst
+    this.player.x += this.player.dashDirX * dashSpeed * dt;
+    this.player.y += this.player.dashDirY * dashSpeed * dt;
+
+    // clamp to field
+    this.player.x = Math.max(-FIELD_W / 2 + 0.3, Math.min(FIELD_W / 2 - 2, this.player.x));
+    this.player.y = Math.max(-FIELD_H / 2 + 0.3, Math.min(FIELD_H / 2 - 0.3, this.player.y));
+
+    // spawn afterimage
+    if (this.player.group && this.save.settings.particles) {
+      const skin = this.getSkin();
+      const geo = new BoxGeometry(0.5, 0.12, 0.25);
+      const mat = new MeshBasicMaterial({
+        color: new Color(skin.color).getHex(),
+        transparent: true, opacity: 0.5,
+        blending: AdditiveBlending,
+      });
+      const mesh = new Mesh(geo, mat);
+      mesh.position.set(this.player.x, this.player.y, 0);
+      this.gameRoot.add(mesh);
+      this.dashAfterimages.push({ mesh, life: 0.25 });
+    }
+
+    if (this.player.dashTimer <= 0) {
+      this.player.isDashing = false;
+      this.player.dashCooldown = 1.2; // 1.2s cooldown
+    }
+  }
+
+  updateDashAfterimages(dt: number) {
+    for (const ai of this.dashAfterimages) {
+      ai.life -= dt;
+      const alpha = Math.max(0, ai.life / 0.25);
+      (ai.mesh.material as MeshBasicMaterial).opacity = alpha * 0.4;
+      const s = 0.8 + (1 - alpha) * 0.3;
+      ai.mesh.scale.set(s, s, s);
+    }
+    this.dashAfterimages = this.dashAfterimages.filter(ai => {
+      if (ai.life <= 0) { if (ai.mesh.parent) this.gameRoot.remove(ai.mesh); return false; }
+      return true;
+    });
+  }
+
+  // ─── Chain Kill System ───────────────────────────────────────
+  registerKillPosition(x: number, y: number) {
+    const now = this.gameTime;
+    this.recentKillPositions.push({ x, y, time: now });
+    // only keep kills from last 0.3s
+    this.recentKillPositions = this.recentKillPositions.filter(k => now - k.time < 0.3);
+  }
+
+  processChainKills(deadX: number, deadY: number) {
+    const chainRadius = 1.0;
+    let chainKillCount = 0;
+    for (const e of this.enemies) {
+      if (!e.active || e.type === 'boss') continue;
+      const dx = e.x - deadX;
+      const dy = e.y - deadY;
+      if (Math.sqrt(dx * dx + dy * dy) < chainRadius) {
+        e.hp -= 2; // splash damage
+        this.spawnParticles(e.x, e.y, 0xffaa00, 3);
+        if (e.hp <= 0) {
+          e.active = false;
+          e.group.visible = false;
+          const chainPts = e.points * 2; // chain kills are worth double
+          this.score += chainPts;
+          this.save.totalKills++;
+          this.save.totalChainKills++;
+          chainKillCount++;
+          this.spawnScorePopup(e.x, e.y, chainPts);
+          this.spawnParticles(e.x, e.y, 0xffcc00, 8);
+          this.audio.chainKill();
+          this.stageKills++;
+          // carrier chain death
+          if (e.type === 'carrier') {
+            this.save.totalCarrierKills++;
+            const sc = 3 + Math.floor(Math.random() * 2);
+            for (let ci = 0; ci < sc; ci++) {
+              this.createEnemy('swarm', e.x + (Math.random() - 0.5) * 0.8, e.y + (Math.random() - 0.5) * 1.0);
+            }
+          }
+          // recursive chain — enemies killed by chain can chain further
+          this.processChainKills(e.x, e.y);
+        }
+      }
+    }
+    if (chainKillCount >= 2) {
+      this.showToast('CHAIN x' + chainKillCount + '!');
+      this.triggerShake(0.5);
+    }
+  }
+
+  // ─── Danger Zone Events ──────────────────────────────────────
+  startDangerZone() {
+    this.dangerZoneActive = true;
+    this.dangerZoneKills = 0;
+    this.dangerZoneTarget = 10 + this.stage * 2;
+    this.dangerZoneTimer = 15; // 15s to clear
+    this.audio.dangerZone();
+    this.showToast('⚠ DANGER ZONE ⚠');
+    this.triggerShake(1.0);
+
+    // Spawn a concentrated mixed wave
+    const halfH = FIELD_H / 2 - 0.5;
+    const rightEdge = FIELD_W / 2 + 1;
+    const types: EnemyType[] = ['straight', 'sine', 'dive', 'turret', 'sniper', 'swarm', 'carrier'];
+    for (let i = 0; i < this.dangerZoneTarget; i++) {
+      const type = types[Math.floor(Math.random() * types.length)];
+      const x = rightEdge + Math.random() * 3;
+      const y = (Math.random() - 0.5) * halfH * 2;
+      this.createEnemy(type, x, y);
+    }
+    // warning indicators across the field
+    for (let i = 0; i < 5; i++) {
+      this.spawnWarning((i - 2) * (FIELD_H / 4));
+    }
+  }
+
+  updateDangerZone(dt: number) {
+    if (!this.dangerZoneActive) return;
+    this.dangerZoneTimer -= dt;
+
+    if (this.dangerZoneKills >= this.dangerZoneTarget) {
+      // Cleared!
+      this.dangerZoneActive = false;
+      this.save.totalDangerZonesCleared++;
+      const bonus = this.dangerZoneTarget * 200;
+      this.score += bonus;
+      this.showToast('DANGER ZONE CLEARED! +' + bonus);
+      this.audio.dangerZoneClear();
+      this.triggerShake(1.5);
+      this.activateSlowMotion(0.6);
+      // Celebration particles across field
+      for (let i = 0; i < 8; i++) {
+        this.spawnParticles((Math.random() - 0.5) * FIELD_W, (Math.random() - 0.5) * FIELD_H, 0x44ff44, 6);
+      }
+    } else if (this.dangerZoneTimer <= 0) {
+      // Time expired — no bonus
+      this.dangerZoneActive = false;
+      this.showToast('DANGER ZONE EXPIRED');
+    }
+  }
+
+  // ─── Shield Reflect ──────────────────────────────────────────
+  reflectBullet(b: Bullet) {
+    if (!this.player.shielded) return;
+    // Find nearest enemy to aim reflected bullet at
+    let nearest: Enemy | null = null;
+    let minDist = Infinity;
+    for (const e of this.enemies) {
+      if (!e.active) continue;
+      const d = Math.abs(e.x - this.player.x) + Math.abs(e.y - this.player.y);
+      if (d < minDist) { minDist = d; nearest = e; }
+    }
+    const px = this.player.x;
+    const py = this.player.y;
+    if (nearest) {
+      const dx = nearest.x - px;
+      const dy = nearest.y - py;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      this.createBullet(px, py, (dx / len) * BULLET_SPEED, (dy / len) * BULLET_SPEED, true, 2);
+    } else {
+      this.createBullet(px, py, BULLET_SPEED, 0, true, 2);
+    }
+    this.save.totalShieldReflects++;
+    this.audio.shieldReflect();
+    this.spawnParticles(px, py, 0x4488ff, 4);
+  }
+
+  // ─── Bullet Cancel ───────────────────────────────────────────
+  cancelAllEnemyBullets() {
+    let canceled = 0;
+    for (const b of this.bullets) {
+      if (!b.active || b.isPlayer) continue;
+      b.active = false;
+      b.mesh.visible = false;
+      this.score += 50;
+      canceled++;
+      this.spawnScorePopup(b.x, b.y, 50);
+      // visual sparkle at bullet position
+      this.spawnParticles(b.x, b.y, 0xffff44, 2);
+    }
+    this.save.totalBulletsCanceled += canceled;
+    if (canceled > 0) {
+      this.audio.bulletCancel();
+      this.showToast('BULLET CANCEL! +' + (canceled * 50));
+    }
+  }
+
+  // ─── Micro-Challenge System ──────────────────────────────────
+  startChallenge() {
+    if (this.challengeActive || this.boss.active) return;
+    const types: ('kill' | 'graze' | 'combo')[] = ['kill', 'graze', 'combo'];
+    this.challengeType = types[Math.floor(Math.random() * types.length)];
+    this.challengeActive = true;
+    this.challengeProgress = 0;
+
+    switch (this.challengeType) {
+      case 'kill':
+        this.challengeTarget = 5 + Math.floor(this.stage * 0.5);
+        this.challengeTimer = 5;
+        this.showToast('CHALLENGE: Kill ' + this.challengeTarget + ' in 5s!');
+        break;
+      case 'graze':
+        this.challengeTarget = 3;
+        this.challengeTimer = 6;
+        this.showToast('CHALLENGE: Graze ' + this.challengeTarget + ' bullets in 6s!');
+        break;
+      case 'combo':
+        this.challengeTarget = 8 + this.stage;
+        this.challengeTimer = 8;
+        this.showToast('CHALLENGE: x' + this.challengeTarget + ' combo in 8s!');
+        break;
+    }
+    this.audio.challengeStart();
+    this.challengeCooldown = 45; // 45s between challenges
+  }
+
+  updateChallenge(dt: number) {
+    if (this.challengeCooldown > 0) this.challengeCooldown -= dt;
+
+    if (!this.challengeActive) return;
+    this.challengeTimer -= dt;
+
+    // check progress
+    let completed = false;
+    switch (this.challengeType) {
+      case 'kill':
+        // progress tracked via kill events
+        completed = this.challengeProgress >= this.challengeTarget;
+        break;
+      case 'graze':
+        completed = this.challengeProgress >= this.challengeTarget;
+        break;
+      case 'combo':
+        completed = this.combo >= this.challengeTarget;
+        break;
+    }
+
+    if (completed) {
+      this.challengeActive = false;
+      this.save.totalChallengesCompleted++;
+      const bonus = 1000 + this.stage * 200;
+      this.score += bonus;
+      addXp(this.save, 100);
+      this.showToast('CHALLENGE COMPLETE! +' + bonus);
+      this.audio.challengeComplete();
+      this.triggerShake(0.5);
+    } else if (this.challengeTimer <= 0) {
+      this.challengeActive = false;
+      this.showToast('CHALLENGE FAILED');
+    }
   }
 
   updateSlowMotion(dt: number): number {
@@ -1564,6 +1897,7 @@ class GameManager {
     for (const d of this.player.drones) { if (d.group.parent) this.gameRoot.remove(d.group); }
     for (const sp of this.scorePopups) { if (sp.mesh.parent) this.gameRoot.remove(sp.mesh); }
     for (const w of this.warningIndicators) { if (w.mesh.parent) this.gameRoot.remove(w.mesh); }
+    for (const ai of this.dashAfterimages) { if (ai.mesh.parent) this.gameRoot.remove(ai.mesh); }
     this.enemies = [];
     this.bullets = [];
     this.powerUps = [];
@@ -1574,6 +1908,13 @@ class GameManager {
     this.player.drones = [];
     this.scorePopups = [];
     this.warningIndicators = [];
+    this.dashAfterimages = [];
+    this.recentKillPositions = [];
+    this.dangerZoneActive = false;
+    this.dangerZoneKills = 0;
+    this.dangerZoneTimer = 0;
+    this.challengeActive = false;
+    this.challengeCooldown = 15;
     this.stageClearActive = false;
     this.stageClearTimer = 0;
     this.criticalFlashTimer = 0;
@@ -1737,6 +2078,7 @@ class GameManager {
     this.audio.explosion();
     this.triggerShake(2.5);
     this.activateSlowMotion(1.0); // bullet time on boss kill
+    this.cancelAllEnemyBullets(); // convert enemy bullets to score pickups
     this.stageClearActive = true;
     this.stageClearTimer = 2.0;
     if (this.boss.enemy) {
@@ -1827,6 +2169,16 @@ class GameManager {
               }
             }
 
+            // Chain kill system — splash damage to nearby enemies
+            this.registerKillPosition(e.x, e.y);
+            this.processChainKills(e.x, e.y);
+
+            // Danger zone kill tracking
+            if (this.dangerZoneActive) this.dangerZoneKills++;
+
+            // Challenge kill tracking
+            if (this.challengeActive && this.challengeType === 'kill') this.challengeProgress++;
+
             // power-up drop chance
             if (Math.random() < (e.type === 'carrier' ? 0.5 : 0.2)) {
               this.spawnPowerUp(e.x, e.y);
@@ -1848,9 +2200,10 @@ class GameManager {
           b.active = false;
           b.mesh.visible = false;
           if (this.player.shielded) {
+            this.reflectBullet(b); // shield reflects bullet back
             this.player.shielded = false;
             this.player.shieldTimer = 0;
-            this.showToast('SHIELD BROKEN');
+            this.showToast('SHIELD REFLECT!');
           } else {
             this.hitPlayer();
           }
@@ -2396,6 +2749,10 @@ class GameManager {
       if (this.waveNumber % 5 === 0) {
         this.showToast('WAVE ' + this.waveNumber);
       }
+      // Danger Zone every 12 waves
+      if (this.waveNumber % 12 === 0 && !this.dangerZoneActive && !this.boss.active) {
+        this.startDangerZone();
+      }
       // Mini-boss every 7 waves
       if (this.waveNumber % 7 === 0 && !this.boss.active) {
         this.spawnMiniBoss();
@@ -2434,6 +2791,19 @@ class GameManager {
 
     // Stage clear celebration
     this.updateStageClear(dt);
+
+    // Dash system
+    this.updateDash(dt);
+    this.updateDashAfterimages(dt);
+
+    // Danger zone events — trigger every 12 waves
+    this.updateDangerZone(dt);
+
+    // Micro-challenges — trigger periodically
+    this.updateChallenge(dt);
+    if (this.challengeCooldown <= 0 && !this.challengeActive && !this.boss.active && this.gameTime > 15) {
+      this.startChallenge();
+    }
 
     // boss update
     this.updateBoss(dt);
@@ -2536,6 +2906,10 @@ class GameManager {
     if (this.feverMult > 1) comboText += ' FEVER!';
     if (this.player.grazeCount > 0) comboText += ' G:' + this.player.grazeCount;
     if (this.slowMotion) comboText += ' SLOW';
+    if (this.player.isDashing) comboText += ' DASH';
+    else if (this.player.dashCooldown > 0) comboText += ' D:' + Math.ceil(this.player.dashCooldown);
+    if (this.dangerZoneActive) comboText += ' ⚠DZ:' + Math.ceil(this.dangerZoneTimer) + 's';
+    if (this.challengeActive) comboText += ' CH:' + Math.ceil(this.challengeTimer) + 's';
     this.setText('hud', 'combo-val', comboText);
     if (this.mode === 'timed') {
       const rem = Math.max(0, 120 - Math.floor(this.gameTime));
@@ -2623,6 +2997,11 @@ class GameManager {
     this.setText('stats', 'stat-grazes', 'Grazes: ' + this.save.totalGrazes);
     this.setText('stats', 'stat-charges', 'Charge Shots: ' + this.save.totalChargeShots);
     this.setText('stats', 'stat-bombs', 'Bombs: ' + this.save.totalBombs);
+    this.setText('stats', 'stat-dashes', 'Dashes: ' + this.save.totalDashes);
+    this.setText('stats', 'stat-chains', 'Chain Kills: ' + this.save.totalChainKills);
+    this.setText('stats', 'stat-zones', 'Danger Zones: ' + this.save.totalDangerZonesCleared);
+    this.setText('stats', 'stat-reflects', 'Shield Reflects: ' + this.save.totalShieldReflects);
+    this.setText('stats', 'stat-challenges', 'Challenges: ' + this.save.totalChallengesCompleted);
   }
 
   updateSkinsUI() {
@@ -2904,6 +3283,17 @@ class NeonRushGameSystem extends createSystem({}) {
     if (kb.getKeyDown('KeyB')) {
       this.game.deployBomb();
     }
+
+    // Dash - Shift key
+    if (kb.getKeyDown('ShiftLeft') || kb.getKeyDown('ShiftRight')) {
+      let dx = 0, dy = 0;
+      if (kb.getKeyPressed('ArrowRight') || kb.getKeyPressed('KeyD')) dx += 1;
+      if (kb.getKeyPressed('ArrowLeft') || kb.getKeyPressed('KeyA')) dx -= 1;
+      if (kb.getKeyPressed('ArrowUp') || kb.getKeyPressed('KeyW')) dy += 1;
+      if (kb.getKeyPressed('ArrowDown') || kb.getKeyPressed('KeyS')) dy -= 1;
+      this.game.performDash(dx, dy);
+    }
+
     this.game.updateCharge(delta, chargeHeld);
 
     // XR input
@@ -2935,6 +3325,11 @@ class NeonRushGameSystem extends createSystem({}) {
       if (left) {
         if (left.getButtonDown(InputComponent.Y_Button)) {
           this.game.deployBomb();
+        }
+        // Squeeze grip for dash in XR
+        if (left.getButtonDown(InputComponent.Squeeze)) {
+          const leftStick = left.getAxesValues(InputComponent.Thumbstick);
+          this.game.performDash(leftStick?.x || 1, leftStick?.y || 0);
         }
       }
     }
@@ -2997,7 +3392,7 @@ async function main() {
     leaderboard:  { pos: [0, 1.35, -1.15], mw: 500, mh: 600, vis: false },
     achievements: { pos: [0, 1.35, -1.15], mw: 500, mh: 700, vis: false },
     settings:     { pos: [0, 1.35, -1.15], mw: 500, mh: 550, vis: false },
-    stats:        { pos: [0, 1.35, -1.15], mw: 500, mh: 500, vis: false },
+    stats:        { pos: [0, 1.35, -1.15], mw: 500, mh: 600, vis: false },
     skins:        { pos: [0, 1.35, -1.15], mw: 500, mh: 500, vis: false },
     help:         { pos: [0, 1.35, -1.15], mw: 500, mh: 600, vis: false },
     toast:        { pos: [0, 2.1, -1.5],   mw: 400, mh: 60,  vis: false },
