@@ -290,6 +290,11 @@ const ACHIEVEMENTS: Achievement[] = [
   { id: 'magnet_10', name: 'Magnetic Personality', desc: 'Collect 10 magnets', check: s => s.totalMagnets >= 10 },
   { id: 'kill_5000', name: 'Apocalypse', desc: '5000 total kills', check: s => s.totalKills >= 5000 },
   { id: 'score_500k', name: 'Million Dollar Baby', desc: '500K in a single run', check: s => s.highScores.some(h => h.score >= 500000) },
+  { id: 'carrier_1', name: 'Mothership Down', desc: 'Destroy a carrier', check: s => s.totalCarrierKills >= 1 },
+  { id: 'carrier_10', name: 'Fleet Breaker', desc: 'Destroy 10 carriers', check: s => s.totalCarrierKills >= 10 },
+  { id: 'stage_15', name: 'Beyond the Void', desc: 'Reach stage 15', check: s => s.maxStage >= 15 },
+  { id: 'stage_20', name: 'Galactic Overlord', desc: 'Reach stage 20', check: s => s.maxStage >= 20 },
+  { id: 'boss_20', name: 'Boss Annihilator', desc: 'Defeat 20 bosses', check: s => s.totalBossKills >= 20 },
 ];
 
 const DIFFICULTY_MULT: Record<Difficulty, { speed: number; hp: number; fire: number; spawn: number }> = {
@@ -641,13 +646,16 @@ class GameManager {
     const topWall = new Mesh(new BoxGeometry(FIELD_W + 2, 0.08, 0.08), wallMat);
     topWall.position.set(0, FIELD_H / 2, 0);
     this.gameRoot.add(topWall);
+    this.boundaryMeshes.push(topWall);
     const botWall = new Mesh(new BoxGeometry(FIELD_W + 2, 0.08, 0.08), wallMat.clone());
     botWall.position.set(0, -FIELD_H / 2, 0);
     this.gameRoot.add(botWall);
+    this.boundaryMeshes.push(botWall);
     // left wall
     const leftWall = new Mesh(new BoxGeometry(0.08, FIELD_H + 0.08, 0.08), wallMat.clone());
     leftWall.position.set(-FIELD_W / 2 - 0.04, 0, 0);
     this.gameRoot.add(leftWall);
+    this.boundaryMeshes.push(leftWall);
   }
 
   // ─── Player Ship ───────────────────────────────────────────────
@@ -1132,6 +1140,7 @@ class GameManager {
     const halfH = FIELD_H / 2 - 0.5;
     const rightEdge = FIELD_W / 2 + 1;
     const y = (Math.random() - 0.5) * halfH;
+    this.spawnWarning(y);
 
     const theme = this.getTheme();
     const diff = DIFFICULTY_MULT[this.difficulty];
@@ -1554,6 +1563,7 @@ class GameManager {
     for (const a of this.asteroids) { if (a.group.parent) this.gameRoot.remove(a.group); }
     for (const d of this.player.drones) { if (d.group.parent) this.gameRoot.remove(d.group); }
     for (const sp of this.scorePopups) { if (sp.mesh.parent) this.gameRoot.remove(sp.mesh); }
+    for (const w of this.warningIndicators) { if (w.mesh.parent) this.gameRoot.remove(w.mesh); }
     this.enemies = [];
     this.bullets = [];
     this.powerUps = [];
@@ -1563,6 +1573,10 @@ class GameManager {
     this.asteroids = [];
     this.player.drones = [];
     this.scorePopups = [];
+    this.warningIndicators = [];
+    this.stageClearActive = false;
+    this.stageClearTimer = 0;
+    this.criticalFlashTimer = 0;
     this.slowMotion = false;
     this.slowMotionFactor = 1;
     this.slowMotionTimer = 0;
@@ -1636,6 +1650,10 @@ class GameManager {
   spawnBoss() {
     this.audio.bossWarning();
     this.showToast('WARNING: BOSS APPROACHING');
+    // Spawn warning indicators
+    this.spawnWarning(0);
+    this.spawnWarning(FIELD_H / 4);
+    this.spawnWarning(-FIELD_H / 4);
     const enemy = this.createEnemy('boss', FIELD_W / 2 + 2, 0);
     this.boss = {
       active: true, phase: 0,
@@ -1718,6 +1736,9 @@ class GameManager {
     this.showToast('BOSS DEFEATED! +5000');
     this.audio.explosion();
     this.triggerShake(2.5);
+    this.activateSlowMotion(1.0); // bullet time on boss kill
+    this.stageClearActive = true;
+    this.stageClearTimer = 2.0;
     if (this.boss.enemy) {
       this.spawnParticles(this.boss.enemy.x, this.boss.enemy.y, 0xff4444, 20);
       // Massive multi-burst explosion
@@ -1735,9 +1756,19 @@ class GameManager {
     this.stageKills = 0;
     this.stageKillTarget = 15 + this.stage * 5;
     if (this.stage > this.save.maxStage) this.save.maxStage = this.stage;
-    this.showToast('STAGE ' + this.stage);
+
+    // Stage clear bonus
+    const stageBonus = this.stage * 500;
+    this.score += stageBonus;
+    this.showToast('STAGE ' + this.stage + ' - Bonus +' + stageBonus);
     this.stageTransitionTimer = 1.5;
     this.triggerShake(0.5);
+
+    // Celebration particles
+    for (let i = 0; i < 6; i++) {
+      const px = -FIELD_W / 2 + (FIELD_W * i) / 5;
+      this.spawnParticles(px, 0, 0x00ffff, 6);
+    }
 
     // Stage-based theme cycling for visual variety
     if (this.stage % 3 === 0 && this.scene.fog) {
@@ -2013,6 +2044,15 @@ class GameManager {
       // Sniper: fast, accurate aimed shot
       this.audio.sniperShot();
       this.createBullet(e.x - 0.3, e.y, (dx / len) * ENEMY_BULLET_SPEED * 1.8, (dy / len) * ENEMY_BULLET_SPEED * 1.2, false, 2);
+    } else if (e.type === 'turret') {
+      // Turret: burst fire pattern — 3 bullets in a tight spread
+      for (let i = -1; i <= 1; i++) {
+        const angle = Math.atan2(dy, dx) + i * 0.15;
+        this.createBullet(e.x - 0.2, e.y, Math.cos(angle) * ENEMY_BULLET_SPEED * diff.speed, Math.sin(angle) * ENEMY_BULLET_SPEED * diff.speed * 0.8, false);
+      }
+    } else if (e.type === 'carrier') {
+      // Carrier: slow aimed shot
+      this.createBullet(e.x - 0.4, e.y, (dx / len) * ENEMY_BULLET_SPEED * 0.7 * diff.speed, (dy / len) * ENEMY_BULLET_SPEED * 0.5 * diff.speed, false, 2);
     } else {
       this.createBullet(e.x - 0.2, e.y, (dx / len) * ENEMY_BULLET_SPEED * diff.speed, (dy / len) * ENEMY_BULLET_SPEED * diff.speed * 0.5, false);
     }
@@ -2386,6 +2426,15 @@ class GameManager {
     // Graze detection
     this.checkGrazes();
 
+    // Warning indicators
+    this.updateWarnings(dt);
+
+    // Critical health visual feedback
+    this.updateCriticalHealth(dt);
+
+    // Stage clear celebration
+    this.updateStageClear(dt);
+
     // boss update
     this.updateBoss(dt);
 
@@ -2479,7 +2528,7 @@ class GameManager {
 
   updateHudUI() {
     this.setText('hud', 'score-val', String(this.score));
-    this.setText('hud', 'lives-val', this.mode === 'zen' ? '∞' : String(this.player.lives));
+    this.setText('hud', 'lives-val', this.mode === 'zen' ? 'INF' : String(this.player.lives));
     const stageStr = 'Stage ' + this.stage + (this.player.drones.length > 0 ? ' D:' + this.player.drones.length : '');
     this.setText('hud', 'stage-val', stageStr);
     let comboText = '';

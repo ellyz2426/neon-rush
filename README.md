@@ -1,58 +1,102 @@
-# Neon Peg VR
+# Neon Rush VR
 
-A Peggle-style peg-bouncing arcade game built with IWSDK — aim and shoot balls from a launcher at the top, watch them cascade through a field of glowing pegs with physics-based bouncing. Clear all orange pegs to win!
+A side-scrolling shoot-em-up (shmup) inspired by Gradius and R-Type, built with IWSDK for browser and VR.
 
-**Play live:** https://ellyz2426.github.io/neon-peg/
+## Play
 
-## Gameplay
-
-- Aim the launcher with mouse/thumbstick
-- Shoot balls that bounce off pegs with realistic physics
-- **Orange pegs** must all be cleared to win
-- **Blue pegs** give bonus points
-- **Green pegs** activate power-ups (Multiball, Space Blast, Guide Ball, Zen Ball)
-- **Purple pegs** give 3x score multiplier
-- Catch the ball in the **Fever Bucket** at the bottom for bonus points
-- Fewer orange pegs remaining = higher score per hit
-
-## Controls
-
-### Browser
-- **A/D or Arrow Keys**: Aim launcher
-- **Space**: Shoot ball
-- **ESC/P**: Pause
-
-### VR
-- **Right Thumbstick**: Aim launcher
-- **Right Trigger**: Shoot ball
-- **B Button**: Pause
+**Live:** [https://ellyz2426.github.io/neon-rush/](https://ellyz2426.github.io/neon-rush/)
 
 ## Features
 
-- 8 game modes: Campaign, Quick Play, Time Attack, Zen, Daily Challenge, Fever Frenzy, Precision, Endless
-- 3 difficulty levels (15/10/7 balls)
-- 40 achievements with XP/Level progression (50 levels)
-- 8 ball skins with unlock conditions
-- 5 holodeck arena themes
-- Physics-based ball bouncing with wall/peg collisions
-- Moving fever bucket for bonus catches
-- 4 power-ups: Multiball, Space Blast, Guide Ball, Zen Ball
-- Aim guide trajectory preview (30-dot arc)
-- Combo scoring system (up to x10)
-- Star rating system (1-3 stars)
-- Leaderboard (top 20)
-- Career statistics tracking
-- Procedural audio (15+ SFX + ambient drone)
-- Particle effects (peg hit bursts, fever catch)
-- Ball trail visualization
-- Seeded daily challenge (deterministic PRNG)
-- 16 PanelUI spatial panels (zero HTML DOM)
-- Dual runtime VR + browser
+### Combat
+- **11 enemy types**: Straight, Sine, Dive, Circle, Formation, Turret, Tank, Sniper, Swarm, Carrier, Boss
+- **Carriers** spawn smaller enemies on death
+- **Boss fights** with 4 attack phases: spread fire, aimed volleys, spirals, and enraged ring bursts
+- **Mini-boss encounters** every 7 waves
+- **Graze system** — near-miss bullet scoring with streak tracking
+- **Charge shot** mechanic with 3 power tiers
+- **Orbiting drones** (up to 4) that auto-fire
+- **Environmental asteroids** — destructible for score and power-ups
+
+### Weapons & Power-Ups
+- 3 weapon types with 3 upgrade tiers each: Spread, Laser, Missile
+- 7 power-up types: Spread, Laser, Missile, Shield, Speed, Magnet, Bomb
+- Screen-clearing bomb with slow-motion aftermath
+- Magnet attracts nearby power-ups
+- Shield-to-drone conversion on duplicate pickup
+
+### Game Modes
+- **Campaign** — progress through stages with boss fights
+- **Quickplay** — jump right into action
+- **Timed** — 2-minute score attack
+- **Zen** — infinite lives, relaxed play
+- **Daily** — seeded daily challenge
+- **Fever** — scaling combo multiplier (2x to 8x)
+- **Precision** — one life, slow fire rate
+- **Endless** — infinite stages, ever-increasing difficulty
+
+### Customization
+- 4 difficulty levels: Easy, Normal, Hard, Insane
+- 8 ship skins with unlock conditions
+- 5 visual themes (Neon Holodeck, Crimson Grid, Toxic Neon, Ultra Violet, Solar Blaze)
+- SFX, particles, and screen shake toggles
+
+### Progression
+- 67+ achievements across combat, scoring, modes, and mechanics
+- XP/leveling system
+- Persistent high scores and statistics
+- localStorage save system
+
+### VR Support
+- Full XR controller input (dual controllers)
+- Left stick: movement, Right stick: movement
+- Triggers: fire, A: charge shot, B: pause, Y: bomb
+- PanelUI spatial interface — all 16 panels work in VR
+
+### Visual Polish
+- Multi-layer parallax star field with colored stars
+- Background floating debris with rotation
+- Screen shake on explosions, deaths, and boss defeats
+- Engine trail particles
+- Stage environment transitions
+- Warning indicators for incoming threats
+- Critical health visual feedback (pulsing boundaries)
+- Bullet-time slow motion on boss kills
+
+## Controls
+
+### Keyboard
+| Key | Action |
+|-----|--------|
+| WASD / Arrows | Move |
+| Space / Z | Shoot |
+| X / C (hold) | Charge shot |
+| B | Deploy bomb |
+| Escape / P | Pause |
+
+### XR Controllers
+| Input | Action |
+|-------|--------|
+| Left/Right Thumbstick | Move |
+| Either Trigger | Shoot |
+| A Button (hold) | Charge shot |
+| Y Button | Deploy bomb |
+| B Button | Pause |
 
 ## Tech Stack
+- [IWSDK](https://iwsdk.dev) v0.4.x (Immersive Web SDK)
+- Three.js (super-three r185)
+- EliCS (Entity Component System)
+- PanelUI with uikitml templates
+- TypeScript + Vite 7
+- Procedural audio engine (10+ synthesized sounds)
 
-- IWSDK 0.4.1 (Immersive Web SDK)
-- PanelUI with `.uikitml` templates
-- Dual runtime (XR + browser-first)
-- Procedural Web Audio API
-- localStorage persistence
+## Development
+```bash
+npm install
+npm run dev     # Start dev server
+npm run build   # Production build
+```
+
+## License
+MIT
