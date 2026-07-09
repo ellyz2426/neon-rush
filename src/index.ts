@@ -37,7 +37,7 @@ type GameState =
   | 'gameover' | 'paused' | 'leaderboard' | 'achievements'
   | 'settings' | 'stats' | 'skins' | 'help';
 
-type EnemyType = 'straight' | 'sine' | 'dive' | 'circle' | 'formation' | 'turret' | 'tank' | 'boss' | 'sniper' | 'swarm' | 'carrier';
+type EnemyType = 'straight' | 'sine' | 'dive' | 'circle' | 'formation' | 'turret' | 'tank' | 'boss' | 'sniper' | 'swarm' | 'carrier' | 'teleporter';
 type PowerUpType = 'spread' | 'laser' | 'missile' | 'shield' | 'speed' | 'magnet' | 'bomb';
 type Difficulty = 'easy' | 'normal' | 'hard' | 'insane';
 
@@ -193,6 +193,9 @@ interface SaveData {
   totalBulletsCanceled: number;
   totalShieldReflects: number;
   totalChallengesCompleted: number;
+  totalTeleporterKills: number;
+  totalSolarFlaresSurvived: number;
+  bossRushBestStage: number;
   maxCombo: number;
   maxStage: number;
   maxGrazeStreak: number;
@@ -234,7 +237,7 @@ const SKINS = [
   { name: 'Inferno Red', color: '#ff4444', emissive: '#aa2222', unlock: 'All modes' },
 ];
 
-const MODES = ['campaign', 'quickplay', 'timed', 'zen', 'daily', 'fever', 'precision', 'endless'] as const;
+const MODES = ['campaign', 'quickplay', 'timed', 'zen', 'daily', 'fever', 'precision', 'endless', 'bossrush'] as const;
 type GameMode = typeof MODES[number];
 
 const ACHIEVEMENTS: Achievement[] = [
@@ -316,6 +319,17 @@ const ACHIEVEMENTS: Achievement[] = [
   { id: 'danger_5', name: 'Danger Junkie', desc: 'Clear 5 Danger Zones', check: s => s.totalDangerZonesCleared >= 5 },
   { id: 'reflect_10', name: 'Mirror Shield', desc: 'Reflect 10 bullets', check: s => s.totalShieldReflects >= 10 },
   { id: 'challenge_5', name: 'Challenge Accepted', desc: 'Complete 5 challenges', check: s => s.totalChallengesCompleted >= 5 },
+  // Round 6 achievements — teleporter, solar flare, boss rush, endurance
+  { id: 'teleporter_5', name: 'Glitch Hunter', desc: 'Destroy 5 teleporters', check: s => s.totalTeleporterKills >= 5 },
+  { id: 'teleporter_25', name: 'Phase Breaker', desc: 'Destroy 25 teleporters', check: s => s.totalTeleporterKills >= 25 },
+  { id: 'solar_flare_1', name: 'Sunblock', desc: 'Survive a solar flare', check: s => s.totalSolarFlaresSurvived >= 1 },
+  { id: 'solar_flare_5', name: 'Solar Surfer', desc: 'Survive 5 solar flares', check: s => s.totalSolarFlaresSurvived >= 5 },
+  { id: 'bossrush_3', name: 'Boss Gauntlet', desc: '3 bosses in Boss Rush', check: s => s.bossRushBestStage >= 3 },
+  { id: 'bossrush_10', name: 'Endurance Fighter', desc: '10 bosses in Boss Rush', check: s => s.bossRushBestStage >= 10 },
+  { id: 'kill_10000', name: 'Armageddon', desc: '10000 total kills', check: s => s.totalKills >= 10000 },
+  { id: 'score_1m', name: 'Millionaire', desc: '1M points in one run', check: s => s.highScores.some(h => h.score >= 1000000) },
+  { id: 'combo_100', name: 'Infinite Combo', desc: 'x100 combo', check: s => s.maxCombo >= 100 },
+  { id: 'time_300', name: 'Lifer', desc: 'Play for 5 hours total', check: s => s.totalPlayTime >= 18000 },
 ];
 
 const DIFFICULTY_MULT: Record<Difficulty, { speed: number; hp: number; fire: number; spawn: number }> = {
@@ -336,6 +350,7 @@ function defaultSave(): SaveData {
     totalDroneKills: 0, totalChargeShots: 0, totalCarrierKills: 0, totalBombs: 0, totalMagnets: 0,
     totalDashes: 0, totalChainKills: 0, totalDangerZonesCleared: 0,
     totalBulletsCanceled: 0, totalShieldReflects: 0, totalChallengesCompleted: 0,
+    totalTeleporterKills: 0, totalSolarFlaresSurvived: 0, bossRushBestStage: 0,
     maxCombo: 0, maxStage: 0, maxGrazeStreak: 0,
     achievements: [], unlockedSkins: ['Neon Cyan'],
     selectedSkin: 0, selectedTheme: 0, xp: 0, level: 1,
@@ -430,6 +445,10 @@ class AudioEngine {
   bulletCancel() { this.play(500, 0.15, 'sine', 0.06); }
   challengeStart() { this.play(440, 0.08, 'square', 0.1); this.play(660, 0.08, 'square', 0.08); }
   challengeComplete() { this.play(660, 0.1, 'sine', 0.12); this.play(880, 0.1, 'sine', 0.1); this.play(1100, 0.15, 'sine', 0.08); }
+  teleportBlip() { this.play(1800, 0.04, 'square', 0.06); this.play(400, 0.06, 'sine', 0.08); }
+  solarFlareWarning() { this.play(180, 0.8, 'sawtooth', 0.12); this.play(260, 0.6, 'square', 0.08); }
+  solarFlareHit() { this.play(80, 0.6, 'sawtooth', 0.18); this.play(120, 0.5, 'square', 0.12); this.play(300, 0.3, 'sine', 0.08); }
+  bossRushFanfare() { this.play(440, 0.12, 'sine', 0.12); this.play(554, 0.12, 'sine', 0.1); this.play(660, 0.12, 'sine', 0.1); this.play(880, 0.2, 'sine', 0.1); }
 }
 
 // ─── Game Manager ───────────────────────────────────────────────────
@@ -538,6 +557,18 @@ class GameManager {
 
   // chain kill tracking
   recentKillPositions: { x: number; y: number; time: number }[] = [];
+
+  // solar flare event
+  solarFlareActive = false;
+  solarFlareTimer = 0;
+  solarFlareWarning = false;
+  solarFlareWarningTimer = 0;
+  solarFlareMeshes: Mesh[] = [];
+
+  // boss rush state
+  bossRushStage = 0;
+  bossRushBreak = false;
+  bossRushBreakTimer = 0;
 
   constructor() {
     this.save = loadSave();
@@ -1413,6 +1444,105 @@ class GameManager {
     return dt;
   }
 
+  // ─── Solar Flare System ──────────────────────────────────────
+  startSolarFlareWarning() {
+    if (this.solarFlareActive || this.solarFlareWarning) return;
+    this.solarFlareWarning = true;
+    this.solarFlareWarningTimer = 2.0; // 2s warning
+    this.audio.solarFlareWarning();
+    this.showToast('☀ SOLAR FLARE INCOMING ☀');
+    this.triggerShake(0.5);
+    // spawn warning indicators across field
+    for (let i = 0; i < 5; i++) {
+      this.spawnWarning((i - 2) * (FIELD_H / 4));
+    }
+  }
+
+  triggerSolarFlare() {
+    this.solarFlareActive = true;
+    this.solarFlareWarning = false;
+    this.solarFlareTimer = 1.5; // 1.5s duration
+    this.audio.solarFlareHit();
+    this.triggerShake(2.0);
+
+    // Create visual flare meshes — bright orange/white bars sweeping across
+    for (let i = 0; i < 6; i++) {
+      const barGeo = new BoxGeometry(FIELD_W + 4, 0.15 + Math.random() * 0.2, 0.01);
+      const barMat = new MeshBasicMaterial({
+        color: Math.random() < 0.5 ? 0xff8800 : 0xffcc44,
+        transparent: true, opacity: 0.6,
+        blending: AdditiveBlending,
+      });
+      const bar = new Mesh(barGeo, barMat);
+      bar.position.set(0, (Math.random() - 0.5) * FIELD_H, 0.1);
+      this.gameRoot.add(bar);
+      this.solarFlareMeshes.push(bar);
+    }
+
+    // Damage unprotected player
+    if (!this.player.shielded && !this.player.invincible && !this.player.isDashing) {
+      this.hitPlayer();
+      this.showToast('SCORCHED BY SOLAR FLARE!');
+    } else {
+      this.save.totalSolarFlaresSurvived++;
+      if (this.player.shielded) {
+        this.showToast('SHIELD BLOCKED SOLAR FLARE!');
+        this.player.shielded = false;
+        this.player.shieldTimer = 0;
+      } else if (this.player.isDashing) {
+        this.showToast('DASHED THROUGH THE FLARE!');
+        this.save.totalSolarFlaresSurvived++;
+      } else {
+        this.showToast('SURVIVED SOLAR FLARE!');
+      }
+    }
+
+    // Damage all enemies too — flare hits everything
+    for (const e of this.enemies) {
+      if (!e.active || e.type === 'boss') continue;
+      e.hp -= 1;
+      if (e.hp <= 0) {
+        e.active = false;
+        e.group.visible = false;
+        this.score += Math.floor(e.points * 0.5);
+        this.save.totalKills++;
+        this.stageKills++;
+        this.spawnParticles(e.x, e.y, 0xffaa00, 4);
+      }
+    }
+  }
+
+  updateSolarFlare(dt: number) {
+    // Warning countdown
+    if (this.solarFlareWarning) {
+      this.solarFlareWarningTimer -= dt;
+      if (this.solarFlareWarningTimer <= 0) {
+        this.triggerSolarFlare();
+      }
+      return;
+    }
+
+    if (!this.solarFlareActive) return;
+    this.solarFlareTimer -= dt;
+
+    // Animate flare bars — sweep and fade
+    for (const bar of this.solarFlareMeshes) {
+      bar.position.y += (Math.random() - 0.5) * 4 * dt;
+      const mat = bar.material as MeshBasicMaterial;
+      mat.opacity = Math.max(0, this.solarFlareTimer / 1.5) * 0.6;
+      bar.scale.x = 1 + (1 - this.solarFlareTimer / 1.5) * 0.5;
+    }
+
+    if (this.solarFlareTimer <= 0) {
+      this.solarFlareActive = false;
+      // Remove flare meshes
+      for (const bar of this.solarFlareMeshes) {
+        if (bar.parent) this.gameRoot.remove(bar);
+      }
+      this.solarFlareMeshes = [];
+    }
+  }
+
   // ─── Score Popup ──────────────────────────────────────────────
   spawnScorePopup(x: number, y: number, points: number) {
     const theme = this.getTheme();
@@ -1652,6 +1782,21 @@ class GameManager {
         hp = 8; points = 800;
         break;
       }
+      case 'teleporter': {
+        // Glitchy enemy that warps to random positions
+        const tpMat = eMat.clone();
+        tpMat.color = new Color('#00ffaa');
+        tpMat.emissive = new Color('#008866');
+        tpMat.transparent = true;
+        tpMat.opacity = 0.7;
+        mesh = new Mesh(new IcosahedronGeometry(0.16, 1), tpMat);
+        // glitch ring
+        const tpRingMat = new MeshBasicMaterial({ color: 0x00ffaa, transparent: true, opacity: 0.3, blending: AdditiveBlending });
+        const tpRing = new Mesh(new TorusGeometry(0.22, 0.02, 6, 12), tpRingMat);
+        group.add(tpRing);
+        hp = 2; points = 350;
+        break;
+      }
       default: {
         mesh = new Mesh(new BoxGeometry(0.3, 0.15, 0.2), eMat);
         hp = 1; points = 100;
@@ -1681,6 +1826,7 @@ class GameManager {
     if (type === 'sniper') { enemy.vx = -SCROLL_SPEED * 0.4 * diff.speed; enemy.fireTimer = 1.5; }
     if (type === 'swarm') { enemy.vx = -(SCROLL_SPEED + 3) * diff.speed; }
     if (type === 'carrier') { enemy.vx = -SCROLL_SPEED * 0.5 * diff.speed; }
+    if (type === 'teleporter') { enemy.vx = -SCROLL_SPEED * 0.3 * diff.speed; enemy.fireTimer = 2.0; }
 
     this.enemies.push(enemy);
     return enemy;
@@ -1898,6 +2044,7 @@ class GameManager {
     for (const sp of this.scorePopups) { if (sp.mesh.parent) this.gameRoot.remove(sp.mesh); }
     for (const w of this.warningIndicators) { if (w.mesh.parent) this.gameRoot.remove(w.mesh); }
     for (const ai of this.dashAfterimages) { if (ai.mesh.parent) this.gameRoot.remove(ai.mesh); }
+    for (const sf of this.solarFlareMeshes) { if (sf.parent) this.gameRoot.remove(sf); }
     this.enemies = [];
     this.bullets = [];
     this.powerUps = [];
@@ -1910,6 +2057,13 @@ class GameManager {
     this.warningIndicators = [];
     this.dashAfterimages = [];
     this.recentKillPositions = [];
+    this.solarFlareMeshes = [];
+    this.solarFlareActive = false;
+    this.solarFlareWarning = false;
+    this.solarFlareTimer = 0;
+    this.solarFlareWarningTimer = 0;
+    this.bossRushBreak = false;
+    this.bossRushBreakTimer = 0;
     this.dangerZoneActive = false;
     this.dangerZoneKills = 0;
     this.dangerZoneTimer = 0;
@@ -1978,6 +2132,9 @@ class GameManager {
     } else if (wave < 0.97) {
       // carrier — heavy enemy that spawns swarm on death
       this.createEnemy('carrier', rightEdge, (Math.random() - 0.5) * halfH);
+    } else if (wave < 0.985) {
+      // teleporter — warps around the field
+      this.createEnemy('teleporter', rightEdge, (Math.random() - 0.5) * halfH);
     } else {
       // swarm — 6-8 tiny enemies in a cluster
       const cy = (Math.random() - 0.5) * halfH;
@@ -2090,7 +2247,31 @@ class GameManager {
         this.spawnParticles(this.boss.enemy.x + ox, this.boss.enemy.y + oy, 0xff8800, 8);
       }
     }
-    this.advanceStage();
+
+    // Boss Rush mode: track stage and schedule next boss
+    if (this.mode === 'bossrush') {
+      this.bossRushStage++;
+      if (this.bossRushStage > this.save.bossRushBestStage) {
+        this.save.bossRushBestStage = this.bossRushStage;
+      }
+      this.audio.bossRushFanfare();
+      this.showToast('BOSS RUSH #' + this.bossRushStage + ' CLEAR!');
+      // Power-up break between bosses
+      this.bossRushBreak = true;
+      this.bossRushBreakTimer = 4.0; // 4s break
+      // Spawn some power-ups as reward
+      for (let i = 0; i < 3; i++) {
+        this.spawnPowerUp((Math.random() - 0.5) * FIELD_W * 0.5, (Math.random() - 0.5) * FIELD_H * 0.5);
+      }
+      // Every 3 bosses, grant an extra life
+      if (this.bossRushStage % 3 === 0) {
+        this.player.lives++;
+        this.showToast('EXTRA LIFE! (' + this.player.lives + ')');
+      }
+      writeSave(this.save);
+    } else {
+      this.advanceStage();
+    }
   }
 
   advanceStage() {
@@ -2167,6 +2348,13 @@ class GameManager {
                 const sy = e.y + (Math.random() - 0.5) * 1.0;
                 this.createEnemy('swarm', sx, sy);
               }
+            }
+
+            // Teleporter: flash effect on death
+            if (e.type === 'teleporter') {
+              this.save.totalTeleporterKills++;
+              this.spawnParticles(e.x, e.y, 0x00ffaa, 12);
+              this.audio.teleportBlip();
             }
 
             // Chain kill system — splash damage to nearby enemies
@@ -2451,6 +2639,16 @@ class GameManager {
       case 'endless':
         this.stageKillTarget = 999999;
         break;
+      case 'bossrush':
+        this.bossRushStage = 0;
+        this.bossRushBreak = false;
+        this.bossRushBreakTimer = 0;
+        this.player.lives = 3;
+        this.player.bombs = 5;
+        // Start first boss immediately
+        this.stageKillTarget = 0;
+        this.stageKills = 0;
+        break;
       case 'daily':
         this.dailySeed = Math.floor(Date.now() / 86400000);
         break;
@@ -2559,6 +2757,10 @@ class GameManager {
           this.showPanel('hud', true);
           this.showPanel('powerup', false);
           this.showPanel('bosshealth', false);
+          // Boss rush: spawn first boss immediately
+          if (this.mode === 'bossrush') {
+            this.spawnBoss();
+          }
         } else {
           this.updateCountdownUI();
         }
@@ -2684,7 +2886,25 @@ class GameManager {
       e.fireTimer -= dt;
       if (e.fireTimer <= 0 && e.type !== 'boss') {
         e.fireTimer = 2 + Math.random() * 2;
-        this.enemyShoot(e);
+        // Teleporter: warp to new position instead of shooting
+        if (e.type === 'teleporter') {
+          e.fireTimer = 2.0 + Math.random() * 1.5;
+          // flash particles at old position
+          this.spawnParticles(e.x, e.y, 0x00ffaa, 6);
+          this.audio.teleportBlip();
+          // teleport to random field position (right half)
+          e.x = (Math.random() * 0.5) * FIELD_W;
+          e.y = (Math.random() - 0.5) * (FIELD_H - 1);
+          e.baseY = e.y;
+          // flash at new position
+          this.spawnParticles(e.x, e.y, 0x00ffaa, 4);
+          // flicker opacity briefly
+          if (e.mesh.material instanceof MeshStandardMaterial) {
+            e.mesh.material.opacity = 0.3;
+          }
+        } else {
+          this.enemyShoot(e);
+        }
       }
 
       // remove if off screen
@@ -2693,6 +2913,12 @@ class GameManager {
       e.group.position.set(e.x, e.y, 0);
       // rotate for visual flair
       e.mesh.rotation.z += dt * (e.type === 'circle' ? 3 : 0.5);
+      // teleporter: fade opacity back up and pulse
+      if (e.type === 'teleporter' && e.mesh.material instanceof MeshStandardMaterial) {
+        e.mesh.material.opacity = Math.min(0.7, e.mesh.material.opacity + dt * 0.5);
+        const pulse = 0.5 + Math.sin(e.timer * 6) * 0.2;
+        e.mesh.material.emissiveIntensity = pulse;
+      }
     }
 
     // update bullets
@@ -2738,7 +2964,7 @@ class GameManager {
 
     // spawn enemies
     this.spawnTimer -= dt;
-    if (this.spawnTimer <= 0 && !this.boss.active) {
+    if (this.spawnTimer <= 0 && !this.boss.active && this.mode !== 'bossrush') {
       const diff = DIFFICULTY_MULT[this.difficulty];
       // Stage-based scaling: enemies spawn faster as stages progress
       const stageScale = 1 + (this.stage - 1) * 0.08;
@@ -2803,6 +3029,25 @@ class GameManager {
     this.updateChallenge(dt);
     if (this.challengeCooldown <= 0 && !this.challengeActive && !this.boss.active && this.gameTime > 15) {
       this.startChallenge();
+    }
+
+    // Solar flare events — every ~20 waves (not in boss rush or zen)
+    this.updateSolarFlare(dt);
+    if (this.waveNumber > 0 && this.waveNumber % 20 === 0 && !this.solarFlareActive && !this.solarFlareWarning
+        && !this.boss.active && this.mode !== 'bossrush' && this.mode !== 'zen' && this.stage >= 2) {
+      this.startSolarFlareWarning();
+    }
+
+    // Boss rush break timer — spawn next boss after break
+    if (this.mode === 'bossrush' && this.bossRushBreak) {
+      this.bossRushBreakTimer -= dt;
+      if (this.bossRushBreakTimer <= 0) {
+        this.bossRushBreak = false;
+        this.stage++;
+        this.stageKills = 0;
+        this.stageKillTarget = 0;
+        this.spawnBoss();
+      }
     }
 
     // boss update
@@ -2899,7 +3144,9 @@ class GameManager {
   updateHudUI() {
     this.setText('hud', 'score-val', String(this.score));
     this.setText('hud', 'lives-val', this.mode === 'zen' ? 'INF' : String(this.player.lives));
-    const stageStr = 'Stage ' + this.stage + (this.player.drones.length > 0 ? ' D:' + this.player.drones.length : '');
+    const stageStr = this.mode === 'bossrush'
+      ? 'Boss #' + (this.bossRushStage + 1) + (this.player.drones.length > 0 ? ' D:' + this.player.drones.length : '')
+      : 'Stage ' + this.stage + (this.player.drones.length > 0 ? ' D:' + this.player.drones.length : '');
     this.setText('hud', 'stage-val', stageStr);
     let comboText = '';
     if (this.combo > 1) comboText += 'x' + this.combo;
@@ -2910,6 +3157,8 @@ class GameManager {
     else if (this.player.dashCooldown > 0) comboText += ' D:' + Math.ceil(this.player.dashCooldown);
     if (this.dangerZoneActive) comboText += ' ⚠DZ:' + Math.ceil(this.dangerZoneTimer) + 's';
     if (this.challengeActive) comboText += ' CH:' + Math.ceil(this.challengeTimer) + 's';
+    if (this.solarFlareWarning) comboText += ' ☀FLARE!';
+    if (this.bossRushBreak) comboText += ' BREAK:' + Math.ceil(this.bossRushBreakTimer) + 's';
     this.setText('hud', 'combo-val', comboText);
     if (this.mode === 'timed') {
       const rem = Math.max(0, 120 - Math.floor(this.gameTime));
@@ -2925,13 +3174,14 @@ class GameManager {
 
   updateGameOverUI() {
     this.setText('gameover', 'final-score', String(this.score));
-    this.setText('gameover', 'final-stage', 'Stage ' + this.stage);
+    this.setText('gameover', 'final-stage', this.mode === 'bossrush' ? 'Bosses: ' + this.bossRushStage : 'Stage ' + this.stage);
     this.setText('gameover', 'final-kills', String(this.stageKills));
     const accuracy = this.save.totalShots > 0 ? Math.floor((this.shotsHit / this.save.totalShots) * 100) : 0;
     const comboStr = 'Combo: x' + (this.combo > this.save.maxCombo ? this.combo : this.save.maxCombo);
     const grazeStr = this.player.grazeTotal > 0 ? ' | Graze: ' + this.player.grazeTotal : '';
     const accStr = this.mode === 'precision' ? ' | Acc: ' + accuracy + '%' : '';
-    this.setText('gameover', 'final-combo', comboStr + grazeStr + accStr);
+    const brStr = this.mode === 'bossrush' ? ' | Best: ' + this.save.bossRushBestStage : '';
+    this.setText('gameover', 'final-combo', comboStr + grazeStr + accStr + brStr);
     const hs = this.save.highScores[0];
     this.setText('gameover', 'best-score', hs ? 'High Score: ' + hs.score.toLocaleString() : '');
   }
@@ -3002,6 +3252,9 @@ class GameManager {
     this.setText('stats', 'stat-zones', 'Danger Zones: ' + this.save.totalDangerZonesCleared);
     this.setText('stats', 'stat-reflects', 'Shield Reflects: ' + this.save.totalShieldReflects);
     this.setText('stats', 'stat-challenges', 'Challenges: ' + this.save.totalChallengesCompleted);
+    this.setText('stats', 'stat-teleporters', 'Teleporters: ' + this.save.totalTeleporterKills);
+    this.setText('stats', 'stat-flares', 'Flares Survived: ' + this.save.totalSolarFlaresSurvived);
+    this.setText('stats', 'stat-bossrush', 'Boss Rush Best: ' + this.save.bossRushBestStage);
   }
 
   updateSkinsUI() {
@@ -3120,6 +3373,12 @@ class NeonRushUISystem extends createSystem({
             this.game.updateDifficultyUI();
           });
         }
+        // Also wire bossrush explicitly in case MODES iteration doesn't catch it
+        btn('btn-bossrush', () => {
+          this.game.setState('difficulty');
+          this.game.mode = 'bossrush';
+          this.game.updateDifficultyUI();
+        });
         btn('btn-modes-back', () => this.game.setState('title'));
         break;
 
