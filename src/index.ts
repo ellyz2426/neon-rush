@@ -37,8 +37,8 @@ type GameState =
   | 'gameover' | 'paused' | 'leaderboard' | 'achievements'
   | 'settings' | 'stats' | 'skins' | 'help';
 
-type EnemyType = 'straight' | 'sine' | 'dive' | 'circle' | 'formation' | 'turret' | 'tank' | 'boss';
-type PowerUpType = 'spread' | 'laser' | 'missile' | 'shield' | 'speed';
+type EnemyType = 'straight' | 'sine' | 'dive' | 'circle' | 'formation' | 'turret' | 'tank' | 'boss' | 'sniper' | 'swarm' | 'carrier';
+type PowerUpType = 'spread' | 'laser' | 'missile' | 'shield' | 'speed' | 'magnet' | 'bomb';
 type Difficulty = 'easy' | 'normal' | 'hard' | 'insane';
 
 interface Enemy {
@@ -142,6 +142,9 @@ interface PlayerState {
   droneCount: number;
   grazeCount: number;
   grazeTotal: number;
+  bombs: number;
+  magnetActive: boolean;
+  magnetTimer: number;
 }
 
 interface BossState {
@@ -175,6 +178,9 @@ interface SaveData {
   totalAsteroidsDestroyed: number;
   totalDroneKills: number;
   totalChargeShots: number;
+  totalCarrierKills: number;
+  totalBombs: number;
+  totalMagnets: number;
   maxCombo: number;
   maxStage: number;
   maxGrazeStreak: number;
@@ -279,6 +285,11 @@ const ACHIEVEMENTS: Achievement[] = [
   { id: 'kill_2500', name: 'Extinction Event', desc: '2500 total kills', check: s => s.totalKills >= 2500 },
   { id: 'score_250k', name: 'Score Lord', desc: '250K in a single run', check: s => s.highScores.some(h => h.score >= 250000) },
   { id: 'level_50', name: 'Grand Admiral', desc: 'Reach level 50', check: s => s.level >= 50 },
+  { id: 'bomb_5', name: 'Bombardier', desc: 'Deploy 5 bombs total', check: s => s.totalBombs >= 5 },
+  { id: 'bomb_20', name: 'Nuclear Option', desc: 'Deploy 20 bombs total', check: s => s.totalBombs >= 20 },
+  { id: 'magnet_10', name: 'Magnetic Personality', desc: 'Collect 10 magnets', check: s => s.totalMagnets >= 10 },
+  { id: 'kill_5000', name: 'Apocalypse', desc: '5000 total kills', check: s => s.totalKills >= 5000 },
+  { id: 'score_500k', name: 'Million Dollar Baby', desc: '500K in a single run', check: s => s.highScores.some(h => h.score >= 500000) },
 ];
 
 const DIFFICULTY_MULT: Record<Difficulty, { speed: number; hp: number; fire: number; spawn: number }> = {
@@ -296,7 +307,7 @@ function defaultSave(): SaveData {
     highScores: [], totalKills: 0, totalShots: 0, totalDeaths: 0,
     totalGames: 0, totalPlayTime: 0, totalPowerUps: 0, totalBossKills: 0,
     totalGrazes: 0, totalMiniBossKills: 0, totalAsteroidsDestroyed: 0,
-    totalDroneKills: 0, totalChargeShots: 0,
+    totalDroneKills: 0, totalChargeShots: 0, totalCarrierKills: 0, totalBombs: 0, totalMagnets: 0,
     maxCombo: 0, maxStage: 0, maxGrazeStreak: 0,
     achievements: [], unlockedSkins: ['Neon Cyan'],
     selectedSkin: 0, selectedTheme: 0, xp: 0, level: 1,
@@ -379,6 +390,10 @@ class AudioEngine {
   miniBossWarning() { this.play(300, 0.3, 'square', 0.12); this.play(250, 0.3, 'square', 0.1); }
   asteroidBreak() { this.play(180, 0.15, 'sawtooth', 0.1); }
   droneAttach() { this.play(700, 0.1, 'sine', 0.1); this.play(900, 0.1, 'sine', 0.08); }
+  bomb() { this.play(100, 0.5, 'sawtooth', 0.2); this.play(60, 0.8, 'square', 0.15); this.play(200, 0.3, 'sine', 0.1); }
+  magnetPickup() { this.play(500, 0.12, 'sine', 0.1); this.play(700, 0.1, 'sine', 0.08); this.play(900, 0.08, 'sine', 0.06); }
+  sniperShot() { this.play(1600, 0.04, 'square', 0.08); this.play(800, 0.06, 'sawtooth', 0.06); }
+  slowMotion() { this.play(200, 0.3, 'sine', 0.08); }
 }
 
 // ─── Game Manager ───────────────────────────────────────────────────
@@ -429,6 +444,14 @@ class GameManager {
   shakeOffsetX = 0;
   shakeOffsetY = 0;
 
+  // slow motion
+  slowMotion = false;
+  slowMotionTimer = 0;
+  slowMotionFactor = 1;
+
+  // score popups
+  scorePopups: { x: number; y: number; text: string; life: number; mesh: Mesh }[] = [];
+
   // wave tracking
   waveNumber = 0;
   waveAnnounceTimer = 0;
@@ -449,6 +472,17 @@ class GameManager {
   toastQueue: string[] = [];
   toastTimer = 0;
 
+  // warning indicators
+  warningIndicators: { mesh: Mesh; y: number; life: number; }[] = [];
+
+  // critical health flash
+  criticalFlashTimer = 0;
+  boundaryMeshes: Mesh[] = [];
+
+  // stage clear celebration
+  stageClearTimer = 0;
+  stageClearActive = false;
+
   constructor() {
     this.save = loadSave();
   }
@@ -466,6 +500,7 @@ class GameManager {
       chargeTime: 0, charging: false, chargeMesh: null,
       drones: [], droneCount: 0,
       grazeCount: 0, grazeTotal: 0,
+      bombs: 3, magnetActive: false, magnetTimer: 0,
     };
   }
 
@@ -889,6 +924,8 @@ class GameManager {
           this.spawnParticles(this.player.x, this.player.y, 0xffffff, 2);
           if (this.player.grazeCount % 10 === 0) {
             this.showToast('GRAZE x' + this.player.grazeCount + '!');
+            // Trigger brief slow-motion on graze milestones
+            this.activateSlowMotion(0.5);
           }
         }
       }
@@ -955,6 +992,137 @@ class GameManager {
     this.triggerShake(0.3 + pct * 0.5);
     this.spawnParticles(px, py, 0xffaa00, 6);
     if (pct >= 1.0) this.showToast('MAX CHARGE!');
+  }
+
+  // ─── Bomb System ─────────────────────────────────────────────
+  deployBomb() {
+    if (this.player.bombs <= 0 || this.state !== 'playing') return;
+    this.player.bombs--;
+    this.save.totalBombs++;
+    this.audio.bomb();
+    this.triggerShake(3.0);
+
+    // Kill all visible enemies (except bosses — just damage them)
+    for (const e of this.enemies) {
+      if (!e.active) continue;
+      if (e.type === 'boss') {
+        e.hp -= 20;
+        this.spawnParticles(e.x, e.y, 0xffaa00, 15);
+        if (e.hp <= 0) { e.active = false; e.group.visible = false; }
+      } else {
+        this.score += e.points;
+        this.save.totalKills++;
+        e.active = false;
+        e.group.visible = false;
+        this.spawnParticles(e.x, e.y, 0xffffff, 6);
+        this.spawnScorePopup(e.x, e.y, e.points);
+      }
+    }
+
+    // Destroy all asteroids
+    for (const a of this.asteroids) {
+      if (!a.active) continue;
+      a.active = false;
+      a.group.visible = false;
+      this.save.totalAsteroidsDestroyed++;
+      this.spawnParticles(a.x, a.y, 0xaaaaaa, 4);
+    }
+
+    // Clear all enemy bullets
+    for (const b of this.bullets) {
+      if (!b.active || b.isPlayer) continue;
+      b.active = false;
+      b.mesh.visible = false;
+    }
+
+    // Big screen flash effect — radial particles from player
+    for (let i = 0; i < 24; i++) {
+      const angle = (Math.PI * 2 * i) / 24;
+      const radius = 1 + Math.random() * 2;
+      this.spawnParticles(
+        this.player.x + Math.cos(angle) * radius,
+        this.player.y + Math.sin(angle) * radius,
+        0xffffff, 3
+      );
+    }
+
+    this.showToast('BOMB! (' + this.player.bombs + ' left)');
+
+    // Slow motion after bomb
+    this.activateSlowMotion(0.8);
+  }
+
+  // ─── Slow Motion ──────────────────────────────────────────────
+  activateSlowMotion(duration: number) {
+    this.slowMotion = true;
+    this.slowMotionTimer = duration;
+    this.slowMotionFactor = 0.3; // 30% game speed
+    this.audio.slowMotion();
+  }
+
+  updateSlowMotion(dt: number): number {
+    if (this.slowMotion) {
+      this.slowMotionTimer -= dt;
+      if (this.slowMotionTimer <= 0) {
+        this.slowMotion = false;
+        this.slowMotionFactor = 1;
+      }
+      return dt * this.slowMotionFactor;
+    }
+    return dt;
+  }
+
+  // ─── Score Popup ──────────────────────────────────────────────
+  spawnScorePopup(x: number, y: number, points: number) {
+    const theme = this.getTheme();
+    // Use a small sphere as a score indicator — rises and fades
+    const geo = new SphereGeometry(0.04, 4, 4);
+    const color = points >= 1000 ? 0xffaa00 : (points >= 300 ? 0x44ff44 : 0xffffff);
+    const mat = new MeshBasicMaterial({ color, transparent: true, opacity: 1, blending: AdditiveBlending });
+    const mesh = new Mesh(geo, mat);
+    mesh.position.set(x, y, 0);
+    this.gameRoot.add(mesh);
+    this.scorePopups.push({ x, y, text: '+' + points, life: 0.8, mesh });
+  }
+
+  updateScorePopups(dt: number) {
+    for (const p of this.scorePopups) {
+      p.life -= dt;
+      p.y += 2 * dt;
+      p.mesh.position.set(p.x, p.y, 0);
+      const alpha = Math.max(0, p.life / 0.8);
+      (p.mesh.material as MeshBasicMaterial).opacity = alpha;
+      const s = 0.5 + alpha * 0.5;
+      p.mesh.scale.set(s, s, s);
+    }
+    this.scorePopups = this.scorePopups.filter(p => {
+      if (p.life <= 0) { if (p.mesh.parent) this.gameRoot.remove(p.mesh); return false; }
+      return true;
+    });
+  }
+
+  // ─── Magnet Update ────────────────────────────────────────────
+  updateMagnet(dt: number) {
+    if (!this.player.magnetActive) return;
+    this.player.magnetTimer -= dt;
+    if (this.player.magnetTimer <= 0) {
+      this.player.magnetActive = false;
+      return;
+    }
+    // Attract power-ups toward player
+    const magnetRange = 4.0;
+    const attractSpeed = 6.0;
+    for (const pu of this.powerUps) {
+      if (!pu.active) continue;
+      const dx = this.player.x - pu.x;
+      const dy = this.player.y - pu.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < magnetRange && dist > 0.1) {
+        const factor = (1 - dist / magnetRange) * attractSpeed;
+        pu.x += (dx / dist) * factor * dt;
+        pu.y += (dy / dist) * factor * dt;
+      }
+    }
   }
 
   // ─── Mini-Boss ────────────────────────────────────────────────
@@ -1089,6 +1257,59 @@ class GameManager {
         hp = 50 + this.stage * 20; points = 5000;
         break;
       }
+      case 'sniper': {
+        // Long thin enemy with a barrel — fires precise aimed shots
+        const sniperMat = eMat.clone();
+        sniperMat.color = new Color('#ff00ff');
+        sniperMat.emissive = new Color('#880088');
+        mesh = new Mesh(new BoxGeometry(0.45, 0.1, 0.12), sniperMat);
+        // barrel
+        const sBarrel = new Mesh(new CylinderGeometry(0.02, 0.04, 0.4, 6), sniperMat.clone());
+        sBarrel.rotation.z = -Math.PI / 2;
+        sBarrel.position.x = -0.35;
+        group.add(sBarrel);
+        // scope glow
+        const scopeMat = new MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.6 });
+        const scope = new Mesh(new SphereGeometry(0.04, 6, 6), scopeMat);
+        scope.position.set(0, 0.08, 0);
+        group.add(scope);
+        hp = 2; points = 400;
+        break;
+      }
+      case 'swarm': {
+        // Tiny fast enemy that comes in groups
+        const swarmMat = eMat.clone();
+        swarmMat.color = new Color('#ffff44');
+        swarmMat.emissive = new Color('#aaaa22');
+        mesh = new Mesh(new OctahedronGeometry(0.08), swarmMat);
+        hp = 1; points = 60;
+        break;
+      }
+      case 'carrier': {
+        // Large enemy that spawns smaller enemies on death
+        const carrierMat = eMat.clone();
+        carrierMat.color = new Color('#ff6600');
+        carrierMat.emissive = new Color('#993300');
+        mesh = new Mesh(new BoxGeometry(0.7, 0.35, 0.3), carrierMat);
+        // side pods (spawn bays)
+        const podMat = new MeshStandardMaterial({
+          color: 0xffaa00, emissive: 0x885500,
+          emissiveIntensity: 0.6, metalness: 0.6, roughness: 0.3,
+        });
+        const topPod = new Mesh(new SphereGeometry(0.1, 6, 6), podMat);
+        topPod.position.set(-0.15, 0.25, 0);
+        group.add(topPod);
+        const botPod = new Mesh(new SphereGeometry(0.1, 6, 6), podMat.clone());
+        botPod.position.set(-0.15, -0.25, 0);
+        group.add(botPod);
+        // engine glow
+        const engMat = new MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.5 });
+        const eng = new Mesh(new SphereGeometry(0.06, 6, 6), engMat);
+        eng.position.set(-0.4, 0, 0);
+        group.add(eng);
+        hp = 8; points = 800;
+        break;
+      }
       default: {
         mesh = new Mesh(new BoxGeometry(0.3, 0.15, 0.2), eMat);
         hp = 1; points = 100;
@@ -1115,6 +1336,9 @@ class GameManager {
     if (type === 'turret') { enemy.vx = -SCROLL_SPEED * 0.3 * diff.speed; }
     if (type === 'tank') { enemy.vx = -SCROLL_SPEED * 0.6 * diff.speed; }
     if (type === 'boss') { enemy.vx = -SCROLL_SPEED * 0.3; }
+    if (type === 'sniper') { enemy.vx = -SCROLL_SPEED * 0.4 * diff.speed; enemy.fireTimer = 1.5; }
+    if (type === 'swarm') { enemy.vx = -(SCROLL_SPEED + 3) * diff.speed; }
+    if (type === 'carrier') { enemy.vx = -SCROLL_SPEED * 0.5 * diff.speed; }
 
     this.enemies.push(enemy);
     return enemy;
@@ -1142,13 +1366,13 @@ class GameManager {
 
   // ─── Power-Up Creation ─────────────────────────────────────────
   spawnPowerUp(x: number, y: number) {
-    const types: PowerUpType[] = ['spread', 'laser', 'missile', 'shield', 'speed'];
+    const types: PowerUpType[] = ['spread', 'laser', 'missile', 'shield', 'speed', 'magnet', 'bomb'];
     const type = types[Math.floor(Math.random() * types.length)];
     const group = new Group();
 
     const colors: Record<PowerUpType, number> = {
       spread: 0xff8800, laser: 0x00ff88, missile: 0xff4444,
-      shield: 0x4488ff, speed: 0xffff00,
+      shield: 0x4488ff, speed: 0xffff00, magnet: 0xff44ff, bomb: 0xff0000,
     };
 
     const geo = new OctahedronGeometry(0.15);
@@ -1263,6 +1487,62 @@ class GameManager {
     });
   }
 
+  // ─── Warning Indicators ──────────────────────────────────────
+  spawnWarning(y: number) {
+    const geo = new CylinderGeometry(0, 0.12, 0.25, 3);
+    const mat = new MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.8, blending: AdditiveBlending });
+    const mesh = new Mesh(geo, mat);
+    mesh.rotation.z = Math.PI / 2; // point left
+    mesh.position.set(FIELD_W / 2 - 0.3, y, 0);
+    this.gameRoot.add(mesh);
+    this.warningIndicators.push({ mesh, y, life: 1.2 });
+  }
+
+  updateWarnings(dt: number) {
+    for (const w of this.warningIndicators) {
+      w.life -= dt;
+      const alpha = 0.3 + Math.sin(w.life * 12) * 0.5; // pulsing
+      (w.mesh.material as MeshBasicMaterial).opacity = Math.max(0, alpha);
+      const s = 0.8 + Math.sin(w.life * 8) * 0.2;
+      w.mesh.scale.set(s, s, s);
+    }
+    this.warningIndicators = this.warningIndicators.filter(w => {
+      if (w.life <= 0) { if (w.mesh.parent) this.gameRoot.remove(w.mesh); return false; }
+      return true;
+    });
+  }
+
+  // ─── Critical Health ─────────────────────────────────────────
+  updateCriticalHealth(dt: number) {
+    if (this.player.lives <= 1 && this.state === 'playing' && !this.player.invincible) {
+      this.criticalFlashTimer += dt;
+      // Pulse boundary walls red
+      const pulse = 0.3 + Math.sin(this.criticalFlashTimer * 4) * 0.3;
+      for (const bm of this.boundaryMeshes) {
+        const mat = bm.material as MeshBasicMaterial;
+        mat.color.setHex(0xff2222);
+        mat.opacity = pulse;
+      }
+    } else {
+      // Reset boundary colors
+      const theme = this.getTheme();
+      for (const bm of this.boundaryMeshes) {
+        const mat = bm.material as MeshBasicMaterial;
+        mat.color = new Color(theme.accent);
+        mat.opacity = 0.15;
+      }
+    }
+  }
+
+  // ─── Stage Clear ─────────────────────────────────────────────
+  updateStageClear(dt: number) {
+    if (!this.stageClearActive) return;
+    this.stageClearTimer -= dt;
+    if (this.stageClearTimer <= 0) {
+      this.stageClearActive = false;
+    }
+  }
+
   // ─── Cleanup ────────────────────────────────────────────────────
   clearGameEntities() {
     for (const e of this.enemies) { if (e.group.parent) this.gameRoot.remove(e.group); }
@@ -1273,6 +1553,7 @@ class GameManager {
     for (const t of this.engineTrail) { if (t.mesh.parent) this.gameRoot.remove(t.mesh); }
     for (const a of this.asteroids) { if (a.group.parent) this.gameRoot.remove(a.group); }
     for (const d of this.player.drones) { if (d.group.parent) this.gameRoot.remove(d.group); }
+    for (const sp of this.scorePopups) { if (sp.mesh.parent) this.gameRoot.remove(sp.mesh); }
     this.enemies = [];
     this.bullets = [];
     this.powerUps = [];
@@ -1281,6 +1562,10 @@ class GameManager {
     this.engineTrail = [];
     this.asteroids = [];
     this.player.drones = [];
+    this.scorePopups = [];
+    this.slowMotion = false;
+    this.slowMotionFactor = 1;
+    this.slowMotionTimer = 0;
     this.boss = { active: false, phase: 0, hp: 0, maxHp: 0, timer: 0, patternTimer: 0, enemy: null };
     this.spawnTimer = 0;
     this.asteroidTimer = 0;
@@ -1332,9 +1617,19 @@ class GameManager {
     } else if (wave < 0.9) {
       // turret
       this.createEnemy('turret', rightEdge, (Math.random() - 0.5) * halfH * 1.5);
+    } else if (wave < 0.95) {
+      // sniper — stays at range
+      this.createEnemy('sniper', rightEdge + 1, (Math.random() - 0.5) * halfH);
+    } else if (wave < 0.97) {
+      // carrier — heavy enemy that spawns swarm on death
+      this.createEnemy('carrier', rightEdge, (Math.random() - 0.5) * halfH);
     } else {
-      // tank
-      this.createEnemy('tank', rightEdge, (Math.random() - 0.5) * halfH);
+      // swarm — 6-8 tiny enemies in a cluster
+      const cy = (Math.random() - 0.5) * halfH;
+      const count = 6 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) {
+        this.createEnemy('swarm', rightEdge + i * 0.3 + Math.random() * 0.2, cy + (Math.random() - 0.5) * 1.5);
+      }
     }
   }
 
@@ -1388,10 +1683,17 @@ class GameManager {
           this.createBullet(e.x - 0.6, e.y + (i - 1) * 0.3, (dx / len) * ENEMY_BULLET_SPEED, (dy / len) * ENEMY_BULLET_SPEED, false);
         }
       } else {
-        // spiral
+        // phase 2: spiral
         for (let i = 0; i < 6; i++) {
           const angle = b.timer * 2 + (Math.PI * 2 * i) / 6;
           this.createBullet(e.x, e.y, Math.cos(angle) * ENEMY_BULLET_SPEED * 0.8, Math.sin(angle) * ENEMY_BULLET_SPEED * 0.8, false);
+        }
+        // phase 3 (hp < 20%): additional ring burst
+        if (b.phase >= 3) {
+          for (let i = 0; i < 12; i++) {
+            const angle = (Math.PI * 2 * i) / 12 + b.timer * 0.5;
+            this.createBullet(e.x, e.y, Math.cos(angle) * ENEMY_BULLET_SPEED * 0.5, Math.sin(angle) * ENEMY_BULLET_SPEED * 0.5, false);
+          }
         }
       }
     }
@@ -1403,7 +1705,8 @@ class GameManager {
     } else {
       // phase transitions
       const hpPct = e.hp / b.maxHp;
-      if (hpPct < 0.33) b.phase = 2;
+      if (hpPct < 0.2) { if (b.phase < 3) { b.phase = 3; this.showToast('BOSS ENRAGED!'); this.triggerShake(1.5); } }
+      else if (hpPct < 0.33) b.phase = 2;
       else if (hpPct < 0.66) b.phase = 1;
     }
   }
@@ -1470,17 +1773,31 @@ class GameManager {
             e.active = false;
             e.group.visible = false;
             this.score += e.points * (1 + Math.floor(this.combo / 5)) * this.feverMult;
+            const earnedPts = e.points * (1 + Math.floor(this.combo / 5)) * this.feverMult;
+            this.spawnScorePopup(e.x, e.y, earnedPts);
             this.combo++;
             this.comboTimer = 2;
             this.stageKills++;
             this.save.totalKills++;
             this.shotsHit++;
             this.audio.explosion();
-            this.triggerShake(e.type === 'tank' ? 0.8 : 0.3);
+            this.triggerShake(e.type === 'tank' ? 0.8 : (e.type === 'carrier' ? 1.0 : 0.3));
             this.spawnParticles(e.x, e.y, new Color(this.getTheme().enemy).getHex(), 10);
 
+            // Carrier: spawn swarm on death
+            if (e.type === 'carrier') {
+              this.save.totalCarrierKills++;
+              const spawnCount = 3 + Math.floor(Math.random() * 2);
+              this.showToast('CARRIER DESTROYED!');
+              for (let ci = 0; ci < spawnCount; ci++) {
+                const sx = e.x + (Math.random() - 0.5) * 0.8;
+                const sy = e.y + (Math.random() - 0.5) * 1.0;
+                this.createEnemy('swarm', sx, sy);
+              }
+            }
+
             // power-up drop chance
-            if (Math.random() < 0.2) {
+            if (Math.random() < (e.type === 'carrier' ? 0.5 : 0.2)) {
               this.spawnPowerUp(e.x, e.y);
             }
 
@@ -1610,6 +1927,17 @@ class GameManager {
         this.player.speed = PLAYER_SPEED * 1.5;
         this.showToast('SPEED BOOST');
         break;
+      case 'magnet':
+        this.player.magnetActive = true;
+        this.player.magnetTimer = 12;
+        this.save.totalMagnets++;
+        this.audio.magnetPickup();
+        this.showToast('MAGNET ACTIVE');
+        break;
+      case 'bomb':
+        this.player.bombs = Math.min(this.player.bombs + 1, 5);
+        this.showToast('BOMB +1 (' + this.player.bombs + ')');
+        break;
     }
   }
 
@@ -1675,12 +2003,19 @@ class GameManager {
 
   // ─── Enemy Shooting ────────────────────────────────────────────
   enemyShoot(e: Enemy) {
-    if (e.type === 'straight' || e.type === 'formation') return; // basic enemies don't shoot
+    if (e.type === 'straight' || e.type === 'formation' || e.type === 'swarm') return; // basic/swarm enemies don't shoot
     const diff = DIFFICULTY_MULT[this.difficulty];
     const dx = this.player.x - e.x;
     const dy = this.player.y - e.y;
     const len = Math.sqrt(dx * dx + dy * dy) || 1;
-    this.createBullet(e.x - 0.2, e.y, (dx / len) * ENEMY_BULLET_SPEED * diff.speed, (dy / len) * ENEMY_BULLET_SPEED * diff.speed * 0.5, false);
+
+    if (e.type === 'sniper') {
+      // Sniper: fast, accurate aimed shot
+      this.audio.sniperShot();
+      this.createBullet(e.x - 0.3, e.y, (dx / len) * ENEMY_BULLET_SPEED * 1.8, (dy / len) * ENEMY_BULLET_SPEED * 1.2, false, 2);
+    } else {
+      this.createBullet(e.x - 0.2, e.y, (dx / len) * ENEMY_BULLET_SPEED * diff.speed, (dy / len) * ENEMY_BULLET_SPEED * diff.speed * 0.5, false);
+    }
   }
 
   // ─── State Transitions ──────────────────────────────────────────
@@ -1803,7 +2138,9 @@ class GameManager {
   // ─── Main Update ──────────────────────────────────────────────
   update(delta: number) {
     // cap delta
-    const dt = Math.min(delta, 0.05);
+    const rawDt = Math.min(delta, 0.05);
+    // Apply slow motion
+    const dt = this.updateSlowMotion(rawDt);
 
     // toast timer
     if (this.toastQueue.length > 0 && this.toastTimer <= 0) {
@@ -2040,6 +2377,12 @@ class GameManager {
     // Drones
     this.updateDrones(dt);
 
+    // Magnet
+    this.updateMagnet(dt);
+
+    // Score popups
+    this.updateScorePopups(dt);
+
     // Graze detection
     this.checkGrazes();
 
@@ -2085,7 +2428,7 @@ class GameManager {
     }
 
     // power-up indicator
-    if (this.player.weapon !== 'normal' || this.player.shielded || this.player.speedBoost) {
+    if (this.player.weapon !== 'normal' || this.player.shielded || this.player.speedBoost || this.player.magnetActive) {
       this.showPanel('powerup', true);
       this.updatePowerUpUI();
     } else {
@@ -2143,6 +2486,7 @@ class GameManager {
     if (this.combo > 1) comboText += 'x' + this.combo;
     if (this.feverMult > 1) comboText += ' FEVER!';
     if (this.player.grazeCount > 0) comboText += ' G:' + this.player.grazeCount;
+    if (this.slowMotion) comboText += ' SLOW';
     this.setText('hud', 'combo-val', comboText);
     if (this.mode === 'timed') {
       const rem = Math.max(0, 120 - Math.floor(this.gameTime));
@@ -2229,6 +2573,7 @@ class GameManager {
     this.setText('stats', 'stat-powerups', 'Power-ups: ' + this.save.totalPowerUps);
     this.setText('stats', 'stat-grazes', 'Grazes: ' + this.save.totalGrazes);
     this.setText('stats', 'stat-charges', 'Charge Shots: ' + this.save.totalChargeShots);
+    this.setText('stats', 'stat-bombs', 'Bombs: ' + this.save.totalBombs);
   }
 
   updateSkinsUI() {
@@ -2259,6 +2604,7 @@ class GameManager {
     }
     if (this.player.shielded) text += (text ? ' | ' : '') + 'SHIELD ' + Math.ceil(this.player.shieldTimer) + 's';
     if (this.player.speedBoost) text += (text ? ' | ' : '') + 'SPEED ' + Math.ceil(this.player.speedTimer) + 's';
+    if (this.player.magnetActive) text += (text ? ' | ' : '') + 'MAGNET ' + Math.ceil(this.player.magnetTimer) + 's';
     this.setText('powerup', 'powerup-text', text);
   }
 
@@ -2505,6 +2851,12 @@ class NeonRushGameSystem extends createSystem({}) {
     const chargeHeld = kb.getKeyPressed('KeyX') || kb.getKeyPressed('KeyC');
     this.game.updateCharge(delta, chargeHeld);
 
+    // Bomb - B key
+    if (kb.getKeyDown('KeyB')) {
+      this.game.deployBomb();
+    }
+    this.game.updateCharge(delta, chargeHeld);
+
     // XR input
     const right = this.input.xr?.gamepads?.right;
     const left = this.input.xr?.gamepads?.left;
@@ -2528,6 +2880,12 @@ class NeonRushGameSystem extends createSystem({}) {
           this.game.state = 'paused';
           this.game.showAllPanels(false);
           this.game.showPanel('pause', true);
+        }
+      }
+      // Y button for bomb in XR
+      if (left) {
+        if (left.getButtonDown(InputComponent.Y_Button)) {
+          this.game.deployBomb();
         }
       }
     }
