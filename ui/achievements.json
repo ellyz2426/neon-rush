@@ -1,0 +1,780 @@
+{
+  "element": {
+    "sourceTag": "container",
+    "type": "custom",
+    "children": [
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "ACHIEVEMENTS"
+        ],
+        "properties": {
+          "fontsize": "18",
+          "fontweight": "bold",
+          "color": "#ff44ff",
+          "marginbottom": "4"
+        },
+        "dataUid": "uid-2"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "0/57 Unlocked"
+        ],
+        "properties": {
+          "name": "ach-progress",
+          "fontsize": "10",
+          "color": "#aaaaaa",
+          "marginbottom": "3"
+        },
+        "dataUid": "uid-3"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] First Blood"
+        ],
+        "properties": {
+          "name": "ach-0",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-4"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Destroy your first enemy"
+        ],
+        "properties": {
+          "name": "ach-desc-0",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-5"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] Ace Pilot"
+        ],
+        "properties": {
+          "name": "ach-1",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-6"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Destroy 50 enemies total"
+        ],
+        "properties": {
+          "name": "ach-desc-1",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-7"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] Squadron Leader"
+        ],
+        "properties": {
+          "name": "ach-2",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-8"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Destroy 200 enemies"
+        ],
+        "properties": {
+          "name": "ach-desc-2",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-9"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] Fleet Commander"
+        ],
+        "properties": {
+          "name": "ach-3",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-10"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "500 total kills"
+        ],
+        "properties": {
+          "name": "ach-desc-3",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-11"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] Rising Star"
+        ],
+        "properties": {
+          "name": "ach-4",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-12"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Score 5,000 points"
+        ],
+        "properties": {
+          "name": "ach-desc-4",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-13"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] Combo Starter"
+        ],
+        "properties": {
+          "name": "ach-5",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-14"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Get a x5 combo"
+        ],
+        "properties": {
+          "name": "ach-desc-5",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-15"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] Boss Slayer"
+        ],
+        "properties": {
+          "name": "ach-6",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-16"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Defeat a boss"
+        ],
+        "properties": {
+          "name": "ach-desc-6",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-17"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] Regular"
+        ],
+        "properties": {
+          "name": "ach-7",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-18"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Play 5 games"
+        ],
+        "properties": {
+          "name": "ach-desc-7",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-19"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] Sector 3"
+        ],
+        "properties": {
+          "name": "ach-8",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-20"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Reach stage 3"
+        ],
+        "properties": {
+          "name": "ach-desc-8",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-21"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] Daredevil"
+        ],
+        "properties": {
+          "name": "ach-9",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-22"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Graze 10 bullets"
+        ],
+        "properties": {
+          "name": "ach-desc-9",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-23"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] Elite Hunter"
+        ],
+        "properties": {
+          "name": "ach-10",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-24"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Defeat a mini-boss"
+        ],
+        "properties": {
+          "name": "ach-desc-10",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-25"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] Rock Breaker"
+        ],
+        "properties": {
+          "name": "ach-11",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-26"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Destroy 10 asteroids"
+        ],
+        "properties": {
+          "name": "ach-desc-11",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-27"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] Charge Master"
+        ],
+        "properties": {
+          "name": "ach-12",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-28"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "Fire 10 charge shots"
+        ],
+        "properties": {
+          "name": "ach-desc-12",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-29"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "[ ] Drone Commander"
+        ],
+        "properties": {
+          "name": "ach-13",
+          "fontsize": "9",
+          "color": "#888888",
+          "width": "290"
+        },
+        "dataUid": "uid-30"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "25 kills from drones"
+        ],
+        "properties": {
+          "name": "ach-desc-13",
+          "fontsize": "7",
+          "color": "#555555",
+          "width": "290"
+        },
+        "dataUid": "uid-31"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "BACK"
+        ],
+        "properties": {
+          "name": "btn-ach-back",
+          "fontsize": "12",
+          "color": "#aaaaaa",
+          "backgroundcolor": "#222222",
+          "borderradius": "4",
+          "padding": "5",
+          "width": "120",
+          "textalign": "center",
+          "cursor": "pointer",
+          "margintop": "3"
+        },
+        "dataUid": "uid-32"
+      }
+    ],
+    "properties": {
+      "flexdirection": "column",
+      "alignitems": "center",
+      "justifycontent": "center",
+      "gap": "2",
+      "width": "320",
+      "height": "520"
+    },
+    "dataUid": "uid-1"
+  },
+  "classes": {},
+  "ranges": {
+    "uid-1": {
+      "start": {
+        "line": 0,
+        "column": 0
+      },
+      "end": {
+        "line": 32,
+        "column": 12
+      }
+    },
+    "uid-2": {
+      "start": {
+        "line": 1,
+        "column": 2
+      },
+      "end": {
+        "line": 1,
+        "column": 92
+      }
+    },
+    "uid-3": {
+      "start": {
+        "line": 2,
+        "column": 2
+      },
+      "end": {
+        "line": 2,
+        "column": 95
+      }
+    },
+    "uid-4": {
+      "start": {
+        "line": 3,
+        "column": 2
+      },
+      "end": {
+        "line": 3,
+        "column": 84
+      }
+    },
+    "uid-5": {
+      "start": {
+        "line": 4,
+        "column": 2
+      },
+      "end": {
+        "line": 4,
+        "column": 98
+      }
+    },
+    "uid-6": {
+      "start": {
+        "line": 5,
+        "column": 2
+      },
+      "end": {
+        "line": 5,
+        "column": 82
+      }
+    },
+    "uid-7": {
+      "start": {
+        "line": 6,
+        "column": 2
+      },
+      "end": {
+        "line": 6,
+        "column": 98
+      }
+    },
+    "uid-8": {
+      "start": {
+        "line": 7,
+        "column": 2
+      },
+      "end": {
+        "line": 7,
+        "column": 88
+      }
+    },
+    "uid-9": {
+      "start": {
+        "line": 8,
+        "column": 2
+      },
+      "end": {
+        "line": 8,
+        "column": 93
+      }
+    },
+    "uid-10": {
+      "start": {
+        "line": 9,
+        "column": 2
+      },
+      "end": {
+        "line": 9,
+        "column": 88
+      }
+    },
+    "uid-11": {
+      "start": {
+        "line": 10,
+        "column": 2
+      },
+      "end": {
+        "line": 10,
+        "column": 89
+      }
+    },
+    "uid-12": {
+      "start": {
+        "line": 11,
+        "column": 2
+      },
+      "end": {
+        "line": 11,
+        "column": 84
+      }
+    },
+    "uid-13": {
+      "start": {
+        "line": 12,
+        "column": 2
+      },
+      "end": {
+        "line": 12,
+        "column": 92
+      }
+    },
+    "uid-14": {
+      "start": {
+        "line": 13,
+        "column": 2
+      },
+      "end": {
+        "line": 13,
+        "column": 86
+      }
+    },
+    "uid-15": {
+      "start": {
+        "line": 14,
+        "column": 2
+      },
+      "end": {
+        "line": 14,
+        "column": 88
+      }
+    },
+    "uid-16": {
+      "start": {
+        "line": 15,
+        "column": 2
+      },
+      "end": {
+        "line": 15,
+        "column": 84
+      }
+    },
+    "uid-17": {
+      "start": {
+        "line": 16,
+        "column": 2
+      },
+      "end": {
+        "line": 16,
+        "column": 87
+      }
+    },
+    "uid-18": {
+      "start": {
+        "line": 17,
+        "column": 2
+      },
+      "end": {
+        "line": 17,
+        "column": 80
+      }
+    },
+    "uid-19": {
+      "start": {
+        "line": 18,
+        "column": 2
+      },
+      "end": {
+        "line": 18,
+        "column": 86
+      }
+    },
+    "uid-20": {
+      "start": {
+        "line": 19,
+        "column": 2
+      },
+      "end": {
+        "line": 19,
+        "column": 81
+      }
+    },
+    "uid-21": {
+      "start": {
+        "line": 20,
+        "column": 2
+      },
+      "end": {
+        "line": 20,
+        "column": 87
+      }
+    },
+    "uid-22": {
+      "start": {
+        "line": 21,
+        "column": 2
+      },
+      "end": {
+        "line": 21,
+        "column": 82
+      }
+    },
+    "uid-23": {
+      "start": {
+        "line": 22,
+        "column": 2
+      },
+      "end": {
+        "line": 22,
+        "column": 90
+      }
+    },
+    "uid-24": {
+      "start": {
+        "line": 23,
+        "column": 2
+      },
+      "end": {
+        "line": 23,
+        "column": 86
+      }
+    },
+    "uid-25": {
+      "start": {
+        "line": 24,
+        "column": 2
+      },
+      "end": {
+        "line": 24,
+        "column": 93
+      }
+    },
+    "uid-26": {
+      "start": {
+        "line": 25,
+        "column": 2
+      },
+      "end": {
+        "line": 25,
+        "column": 86
+      }
+    },
+    "uid-27": {
+      "start": {
+        "line": 26,
+        "column": 2
+      },
+      "end": {
+        "line": 26,
+        "column": 95
+      }
+    },
+    "uid-28": {
+      "start": {
+        "line": 27,
+        "column": 2
+      },
+      "end": {
+        "line": 27,
+        "column": 87
+      }
+    },
+    "uid-29": {
+      "start": {
+        "line": 28,
+        "column": 2
+      },
+      "end": {
+        "line": 28,
+        "column": 95
+      }
+    },
+    "uid-30": {
+      "start": {
+        "line": 29,
+        "column": 2
+      },
+      "end": {
+        "line": 29,
+        "column": 89
+      }
+    },
+    "uid-31": {
+      "start": {
+        "line": 30,
+        "column": 2
+      },
+      "end": {
+        "line": 30,
+        "column": 95
+      }
+    },
+    "uid-32": {
+      "start": {
+        "line": 31,
+        "column": 2
+      },
+      "end": {
+        "line": 31,
+        "column": 186
+      }
+    }
+  }
+}

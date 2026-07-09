@@ -1,0 +1,81 @@
+{
+  "element": {
+    "sourceTag": "container",
+    "type": "custom",
+    "children": [
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "BOSS"
+        ],
+        "properties": {
+          "name": "boss-name",
+          "fontsize": "10",
+          "fontweight": "bold",
+          "color": "#ff4444"
+        },
+        "dataUid": "uid-2"
+      },
+      {
+        "sourceTag": "text",
+        "type": "custom",
+        "children": [
+          "100%"
+        ],
+        "properties": {
+          "name": "boss-hp",
+          "fontsize": "10",
+          "fontweight": "bold",
+          "color": "#ff8800"
+        },
+        "dataUid": "uid-3"
+      }
+    ],
+    "properties": {
+      "flexdirection": "row",
+      "justifycontent": "space-between",
+      "alignitems": "center",
+      "width": "300",
+      "height": "24",
+      "backgroundcolor": "#33000088",
+      "borderradius": "4",
+      "padding": "2",
+      "gap": "8"
+    },
+    "dataUid": "uid-1"
+  },
+  "classes": {},
+  "ranges": {
+    "uid-1": {
+      "start": {
+        "line": 0,
+        "column": 0
+      },
+      "end": {
+        "line": 3,
+        "column": 12
+      }
+    },
+    "uid-2": {
+      "start": {
+        "line": 1,
+        "column": 2
+      },
+      "end": {
+        "line": 1,
+        "column": 84
+      }
+    },
+    "uid-3": {
+      "start": {
+        "line": 2,
+        "column": 2
+      },
+      "end": {
+        "line": 2,
+        "column": 82
+      }
+    }
+  }
+}
